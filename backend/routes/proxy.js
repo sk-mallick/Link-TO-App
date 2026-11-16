@@ -6,26 +6,52 @@ router.get('/', async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).send('URL required');
 
+  let targetUrl = url.trim();
+  if (!/^https?:\/\//i.test(targetUrl)) {
+    targetUrl = 'https://' + targetUrl;
+  }
+
+  // Security: only allow http and https protocols
   try {
-    const response = await fetch(url, {
+    const parsed = new URL(targetUrl);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return res.status(400).send('Invalid URL protocol');
+    }
+  } catch {
+    return res.status(400).send('Malformed URL');
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+
+    const response = await fetch(targetUrl, {
+      signal: controller.signal,
+      redirect: 'follow',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
-      }
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
     });
+    clearTimeout(timeout);
 
     const contentType = response.headers.get('content-type') || '';
 
-    // Strip headers that block iframes, and encoding headers since we decode the body
+    // Strip frame-busting, CSP, and transport headers
     const headersToOmit = [
-      'x-frame-options', 
-      'content-security-policy', 
-      'set-cookie', 
-      'x-xss-protection', 
+      'x-frame-options',
+      'content-security-policy',
+      'content-security-policy-report-only',
+      'set-cookie',
+      'x-xss-protection',
       'cross-origin-opener-policy',
+      'cross-origin-embedder-policy',
       'content-encoding',
       'content-length',
-      'transfer-encoding'
+      'transfer-encoding',
     ];
+
     for (const [key, val] of response.headers.entries()) {
       if (!headersToOmit.includes(key.toLowerCase())) {
         res.setHeader(key, val);
@@ -33,23 +59,26 @@ router.get('/', async (req, res) => {
     }
 
     if (contentType.includes('text/html')) {
-      // Inject <base href="..."> so relative paths work in the iframe
       let html = await response.text();
-      const baseTag = `<base href="${new URL(url).origin}/">`;
-      if (html.includes('<head>')) {
-        html = html.replace('<head>', `<head>${baseTag}`);
+      const baseOrigin = new URL(targetUrl).origin;
+      const baseTag = `<base href="${baseOrigin}/"><script>try{window.top=window.self;window.parent=window.self;}catch(e){}</script>`;
+
+      if (/<head[^>]*>/i.test(html)) {
+        html = html.replace(/<head[^>]*>/i, (match) => `${match}${baseTag}`);
       } else {
         html = baseTag + html;
       }
       res.status(response.status).send(html);
     } else {
-      // Stream non-HTML assets
       res.status(response.status);
       response.body.pipe(res);
     }
   } catch (err) {
-    console.error('Proxy error:', err);
-    res.status(500).send('Proxy failed: ' + err.message);
+    if (err.name === 'AbortError') {
+      return res.status(504).send('Preview timed out');
+    }
+    console.error('Proxy error:', err.message);
+    res.status(502).send('Proxy error: ' + err.message);
   }
 });
 
