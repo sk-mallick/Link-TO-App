@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Link To App — Convert Any Website Into an Android App</title>
+  <meta name="description" content="Instantly convert any website URL into a downloadable Android APK. No coding required." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+  <!-- ─── NAVBAR ─────────────────────────────────────────────── -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <div class="nav-logo">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <span class="nav-title">Link<span class="accent">To</span>App</span>
+    </div>
+    <div class="nav-links">
+      <a href="#how-it-works" class="nav-link">How It Works</a>
+      <a href="#features" class="nav-link">Features</a>
+      <span class="nav-badge">Free MVP</span>
+    </div>
+  </nav>
+
+  <!-- ─── MAIN APP (Page 1 & 2: Split Screen) ──────────────── -->
+  <main class="app-shell" id="page-main">
+
+    <!-- LEFT PANEL -->
+    <section class="left-panel">
+
+      <!-- Hero -->
+      <div class="hero-text">
+        <div class="hero-pill">
+          <span class="pill-dot"></span>
+          Instant APK Generation
+        </div>
+        <h1 class="hero-title">Convert <span class="gradient-text">Website</span><br />Into Android App</h1>
+        <p class="hero-subtitle">Enter any URL and get a working Android APK in minutes. No coding required.</p>
+      </div>
+
+      <!-- URL Input Card -->
+      <div class="input-card" id="input-section">
+        <div class="input-label">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Website URL
+        </div>
+        <div class="input-group">
+          <input
+            type="url"
+            id="urlInput"
+            class="url-input"
+            placeholder="https://yourwebsite.com"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button class="fetch-btn" id="fetchBtn" onclick="fetchMetadata()">
+            <span class="btn-text">Analyze</span>
+            <div class="btn-spinner hidden" id="fetchSpinner"></div>
+          </button>
+        </div>
+        <div class="input-hint" id="inputHint">Press Analyze to auto-detect app name, icon &amp; colors</div>
+        <div class="input-error hidden" id="inputError"></div>
+      </div>
+
+      <!-- Preview Card (hidden until fetch) -->
+      <div class="preview-card hidden" id="previewCard">
+        <div class="preview-card-header">
+          <span class="preview-label">App Preview</span>
+          <div class="preview-status">
+            <span class="status-dot"></span>
+            Ready to Build
+          </div>
+        </div>
+
+        <div class="preview-content">
+          <!-- App Icon -->
+          <div class="app-icon-wrap">
+            <img id="previewIcon" src="" alt="App Icon" class="app-icon" />
+            <div class="app-icon-fallback hidden" id="iconFallback"></div>
+            <button class="icon-upload-btn" onclick="document.getElementById('iconUpload').click()" title="Upload custom icon">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <input type="file" id="iconUpload" accept="image/*" class="hidden" onchange="handleIconUpload(event)" />
+          </div>
+
+          <!-- App Info -->
+          <div class="app-info">
+            <div class="app-name-row">
+              <div class="app-name-display" id="appNameDisplay">My App</div>
+              <button class="edit-btn" onclick="toggleEditName()" id="editNameBtn" title="Edit app name">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+            <input type="text" id="appNameInput" class="app-name-edit hidden" placeholder="Enter app name..." maxlength="50" />
+            <div class="app-url-display" id="appUrlDisplay"></div>
+            <div class="app-desc-display" id="appDescDisplay"></div>
+            <div class="app-pkg-display" id="appPkgDisplay"></div>
+          </div>
+        </div>
+
+        <!-- Color swatch -->
+        <div class="color-row">
+          <span class="color-label">Theme Color</span>
+          <div class="color-swatch-wrap">
+            <div class="color-swatch" id="colorSwatch"></div>
+            <input type="color" id="colorPicker" class="color-picker-input" onchange="updateThemeColor(this.value)" />
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="preview-actions">
+          <button class="btn-secondary" onclick="resetApp()">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 101.84-5.47" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3 3v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Reset
+          </button>
+          <button class="btn-primary" id="generateBtn" onclick="generateAPK()">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2z" stroke="currentColor" stroke-width="2"/><path d="M12 8v4l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Generate APK
+          </button>
+        </div>
+      </div>
+
+      <!-- How it works -->
+      <div class="steps-row" id="how-it-works">
+        <div class="step-item">
+          <div class="step-num">1</div>
+          <div class="step-text">Enter URL</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step-item">
+          <div class="step-num">2</div>
+          <div class="step-text">Auto Extract</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step-item">
+          <div class="step-num">3</div>
+          <div class="step-text">Build APK</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step-item">
+          <div class="step-num">4</div>
+          <div class="step-text">Download</div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT PANEL: Live Preview -->
+    <section class="right-panel" id="right-panel">
+      <div class="phone-frame-wrap">
+        <div class="phone-frame">
+          <!-- Phone details -->
+          <div class="phone-notch">
+            <div class="phone-speaker"></div>
+            <div class="phone-camera"></div>
+          </div>
+          <div class="phone-status-bar">
+            <span>9:41</span>
+            <div class="status-icons">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M1 6l11 6 11-6v12H1z"/></svg>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="2" y="6" width="4" height="12"/><rect x="8" y="4" width="4" height="14"/><rect x="14" y="2" width="4" height="16"/><rect x="20" y="0" width="4" height="18"/></svg>
+            </div>
+          </div>
+          <div class="phone-screen" id="phoneScreen">
+            <div class="phone-placeholder" id="phonePlaceholder">
+              <div class="phone-placeholder-icon">
+                <svg viewBox="0 0 80 80" fill="none">
+                  <circle cx="40" cy="40" r="38" stroke="rgba(108,99,255,0.3)" stroke-width="2" stroke-dasharray="8 4"/>
+                  <path d="M28 40h24M40 28v24" stroke="rgba(108,99,255,0.5)" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <p class="phone-placeholder-text">Enter a URL to<br/>preview the website</p>
+            </div>
+            <iframe
+              id="previewFrame"
+              class="preview-iframe hidden"
+              src=""
+              title="Website Preview"
+              sandbox="allow-scripts allow-forms allow-popups allow-presentation"
+              loading="lazy"
+            ></iframe>
+            <div class="iframe-blocked hidden" id="iframeBlocked">
+              <div class="blocked-icon">🔒</div>
+              <p>This site blocks previews</p>
+              <p class="blocked-sub">The APK will still load the site fully on Android</p>
+            </div>
+          </div>
+          <div class="phone-home-bar"></div>
+        </div>
+        <div class="phone-reflection"></div>
+      </div>
+
+      <!-- Preview label -->
+      <div class="preview-info" id="previewInfo">
+        <div class="preview-info-dot"></div>
+        <span id="previewInfoText">Live website preview</span>
+      </div>
+      <div class="preview-note">
+        <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Some sites block embedding. The APK will still work perfectly on Android.
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ─── Page 3: BUILDING LOADER ──────────────────────────── -->
+  <div class="build-overlay hidden" id="buildOverlay">
+    <div class="build-card">
+      <div class="build-logo">
+        <svg viewBox="0 0 60 60" fill="none">
+          <circle cx="30" cy="30" r="28" stroke="rgba(108,99,255,0.3)" stroke-width="2"/>
+          <path class="build-arc" d="M30 2a28 28 0 0128 28" stroke="#6C63FF" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        <div class="build-logo-inner">
+          <svg viewBox="0 0 24 24" fill="none" width="28" height="28">
+            <rect x="5" y="2" width="14" height="20" rx="2" stroke="#6C63FF" stroke-width="2"/>
+            <path d="M9 7h6M9 11h6M9 15h4" stroke="#6C63FF" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+      <h2 class="build-title">Building Your APK</h2>
+      <div class="build-app-name" id="buildAppName">My App</div>
+
+      <!-- Progress bar -->
+      <div class="build-progress-track">
+        <div class="build-progress-fill" id="buildProgressFill"></div>
+      </div>
+      <div class="build-progress-pct" id="buildProgressPct">0%</div>
+
+      <!-- Steps -->
+      <div class="build-steps" id="buildSteps">
+        <div class="build-step" id="bstep-0">
+          <div class="bstep-icon pending">⏳</div>
+          <span>Validating website</span>
+        </div>
+        <div class="build-step" id="bstep-1">
+          <div class="bstep-icon pending">⏳</div>
+          <span>Fetching website assets</span>
+        </div>
+        <div class="build-step" id="bstep-2">
+          <div class="bstep-icon pending">⏳</div>
+          <span>Creating Android project</span>
+        </div>
+        <div class="build-step" id="bstep-3">
+          <div class="bstep-icon pending">⏳</div>
+          <span>Configuring app settings</span>
+        </div>
+        <div class="build-step" id="bstep-4">
+          <div class="bstep-icon pending">⏳</div>
+          <span>Building APK</span>
+        </div>
+        <div class="build-step" id="bstep-5">
+          <div class="bstep-icon pending">⏳</div>
+          <span>Finalizing</span>
+        </div>
+      </div>
+
+      <div class="build-step-msg" id="buildStepMsg">Preparing...</div>
+    </div>
+  </div>
+
+  <!-- ─── Page 4: DOWNLOAD PAGE ─────────────────────────────── -->
+  <div class="download-overlay hidden" id="downloadOverlay">
+    <div class="download-card">
+      <div class="success-animation">
+        <div class="success-ring"></div>
+        <div class="success-check">✓</div>
+      </div>
+      <h2 class="download-title">APK Ready!</h2>
+      <p class="download-subtitle">Your Android app has been built successfully</p>
+
+      <div class="download-app-info">
+        <img id="dlIcon" src="" alt="" class="dl-icon" />
+        <div class="dl-app-fallback hidden" id="dlIconFallback"></div>
+        <div class="dl-info">
+          <div class="dl-app-name" id="dlAppName">My App</div>
+          <div class="dl-app-url" id="dlAppUrl"></div>
+        </div>
+      </div>
+
+      <a id="downloadBtn" href="#" class="download-btn" download>
+        <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <polyline points="7,10 12,15 17,10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        Download APK
+      </a>
+
+      <div class="install-guide">
+        <h4>How to install on Android:</h4>
+        <ol>
+          <li>Transfer APK to your Android phone</li>
+          <li>Open <strong>Settings → Security</strong></li>
+          <li>Enable <strong>"Install from Unknown Sources"</strong></li>
+          <li>Tap the APK file to install</li>
+        </ol>
+      </div>
+
+      <button class="btn-ghost" onclick="buildAnother()">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M3 12a9 9 0 101.84-5.47" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3 3v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Build Another App
+      </button>
+    </div>
+  </div>
+
+  <!-- ─── ERROR OVERLAY ──────────────────────────────────────── -->
+  <div class="error-overlay hidden" id="errorOverlay">
+    <div class="error-card">
+      <div class="error-icon">⚠️</div>
+      <h3 class="error-title">Build Failed</h3>
+      <p class="error-msg" id="errorMsg">Something went wrong</p>
+      <button class="btn-primary" onclick="closeError()">Try Again</button>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
