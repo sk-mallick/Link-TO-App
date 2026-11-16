@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
-  <title>LinkToApp — Enterprise Website to Android APK Converter</title>
-  <meta name="description" content="Professional platform that analyzes web capabilities and converts any website into a production-grade native Android APK with widgets, notifications, and permissions." />
+  <title>LinkToApp — Professional Website to Android APK Converter</title>
+  <meta name="description" content="Convert any website URL into a production-grade native Android APK with automated theme extraction, runtime permissions, and home screen widgets." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -12,586 +12,449 @@
 </head>
 <body>
 
-  <!-- ─── NAVBAR ─────────────────────────────────────────────── -->
-  <header class="navbar">
-    <div class="nav-container">
-      <div class="nav-brand">
-        <div class="nav-logo">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- ─── TOP NAVBAR ─────────────────────────────────────────── -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none">
             <path d="M5 16V8C5 6.89543 5.89543 6 7 6H17C18.1046 6 19 6.89543 19 8V16C19 17.1046 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16Z" stroke="currentColor" stroke-width="2"/>
             <path d="M9 10H9.01M15 10H15.01" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <path d="M8 3L10 6M16 3L14 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
-        <div class="brand-text">
-          <span class="brand-name">Link<span class="gradient-text">ToApp</span></span>
-          <span class="brand-badge">PRO ARCHITECTURE</span>
+        <div class="brand-info">
+          <span class="brand-title">Link<span class="accent">ToApp</span></span>
+          <span class="brand-tag">Studio Pro</span>
         </div>
       </div>
 
-      <nav class="nav-menu">
-        <button class="nav-tab active" id="tabStudio" onclick="switchMainTab('studio')">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          App Studio
-        </button>
-        <button class="nav-tab" id="tabHistory" onclick="switchMainTab('history')">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          Build History
-          <span class="history-count" id="navHistoryCount">0</span>
-        </button>
-      </nav>
+      <div class="header-center">
+        <div class="engine-badge">
+          <span class="engine-dot"></span>
+          <span>Android SDK 36 • Gradle 8.2 • JDK 21</span>
+        </div>
+      </div>
 
-      <div class="nav-status">
-        <span class="status-indicator"></span>
-        <span class="status-label">Android SDK 36 • AGP 8.2</span>
+      <div class="header-actions">
+        <button class="nav-btn" onclick="openHistoryModal()" title="View Build History">
+          <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
+            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span>History</span>
+          <span class="badge-pill" id="historyCounter">0</span>
+        </button>
       </div>
     </div>
   </header>
 
-  <!-- ─── MAIN VIEWPORT ──────────────────────────────────────── -->
-  <main class="main-layout" id="mainContainer">
+  <!-- ─── SINGLE-VIEWPORT STUDIO (NO PAGE SCROLL) ─────────────── -->
+  <main class="studio-viewport">
+    
+    <!-- LEFT PANEL: CONFIGURATION & ACTIONS -->
+    <section class="studio-panel-left">
 
-    <!-- ════════ VIEW 1: APP STUDIO ════════ -->
-    <div class="view-panel active" id="viewStudio">
-      <div class="studio-grid">
-
-        <!-- LEFT COLUMN: CONTROLS & CONFIGURATION -->
-        <div class="studio-left">
-
-          <!-- Hero Section -->
-          <div class="hero-block">
-            <div class="hero-tag">
-              <span class="tag-pulse"></span>
-              Modern Android WebView &amp; Native Architecture
-            </div>
-            <h1 class="hero-heading">Convert Any Website Into a <span class="gradient-text">Native Android APK</span></h1>
-            <p class="hero-subheading">Automatic framework detection, mobile responsiveness audit, runtime permissions, offline fallback, and configurable home screen widgets.</p>
-          </div>
-
-          <!-- URL Input Card -->
-          <div class="card card-input" id="inputCard">
-            <div class="card-header">
-              <div class="card-header-icon">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-              </div>
-              <div>
-                <h2 class="card-title">Target Website URL</h2>
-                <p class="card-desc">Enter any secure HTTP/HTTPS web application URL</p>
-              </div>
-            </div>
-
-            <div class="input-form">
-              <div class="input-wrapper">
-                <span class="input-prefix">https://</span>
-                <input
-                  type="text"
-                  id="urlInput"
-                  class="url-field"
-                  placeholder="news.ycombinator.com"
-                  autocomplete="off"
-                  spellcheck="false"
-                />
-                <button class="clear-btn hidden" id="clearUrlBtn" onclick="clearUrlInput()" title="Clear URL">✕</button>
-              </div>
-              <button class="btn btn-primary btn-analyze" id="analyzeBtn" onclick="runAnalysis()">
-                <span class="btn-content">
-                  <svg viewBox="0 0 24 24" fill="none" class="btn-icon"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                  <span>Deep Analyze</span>
-                </span>
-                <div class="btn-spinner hidden" id="analyzeSpinner"></div>
-              </button>
-            </div>
-
-            <!-- Preset Samples -->
-            <div class="preset-links">
-              <span class="preset-label">Quick samples:</span>
-              <button type="button" class="preset-chip" onclick="applyPreset('https://news.ycombinator.com')">Hacker News</button>
-              <button type="button" class="preset-chip" onclick="applyPreset('https://en.m.wikipedia.org')">Wikipedia</button>
-              <button type="button" class="preset-chip" onclick="applyPreset('https://excalidraw.com')">Excalidraw (PWA)</button>
-              <button type="button" class="preset-chip" onclick="applyPreset('https://github.com')">GitHub</button>
-            </div>
-
-            <div class="alert-banner alert-error hidden" id="urlErrorBanner"></div>
-          </div>
-
-          <!-- WEBSITE COMPATIBILITY REPORT (shown after analysis) -->
-          <div class="card card-analysis hidden" id="analysisCard">
-            <div class="analysis-header">
-              <div class="analysis-site-info">
-                <img id="siteFavicon" class="site-favicon" src="" alt="Icon" />
-                <div class="site-titles">
-                  <h3 class="site-name" id="siteTitle">Website Name</h3>
-                  <p class="site-url" id="siteUrlClean">https://example.com</p>
-                </div>
-              </div>
-              <div class="score-badge" id="scoreBadge">
-                <div class="score-circle">
-                  <span class="score-val" id="scoreVal">95</span>
-                </div>
-                <div class="score-meta">
-                  <span class="score-grade" id="scoreGrade">Grade A+</span>
-                  <span class="score-label">Mobile Ready</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Tech Badges -->
-            <div class="tech-stack-row" id="techStackRow"></div>
-
-            <!-- Compatibility Tabs -->
-            <div class="compat-tabs">
-              <button class="compat-tab active" onclick="switchCompatFilter('all')">All Matrix</button>
-              <button class="compat-tab" onclick="switchCompatFilter('fully')">Fully Supported</button>
-              <button class="compat-tab" onclick="switchCompatFilter('native')">Native Handled</button>
-              <button class="compat-tab" onclick="switchCompatFilter('config')">Needs Config</button>
-              <button class="compat-tab" onclick="switchCompatFilter('unsupported')">Limits</button>
-            </div>
-
-            <!-- Compatibility Items List -->
-            <div class="compat-list" id="compatList"></div>
-          </div>
-
-          <!-- APK CONFIGURATION WIZARD (shown after analysis) -->
-          <div class="card card-wizard hidden" id="wizardCard">
-            <div class="wizard-header">
-              <div>
-                <h2 class="card-title">APK Configuration Wizard</h2>
-                <p class="card-desc">Customize native features, branding, permissions &amp; widgets</p>
-              </div>
-              <span class="wizard-step-tag">Step 2 of 2</span>
-            </div>
-
-            <!-- Wizard Tabs -->
-            <div class="wizard-nav">
-              <button class="wizard-tab active" onclick="switchWizardTab('branding')">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                Branding &amp; UI
-              </button>
-              <button class="wizard-tab" onclick="switchWizardTab('permissions')">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                Permissions
-              </button>
-              <button class="wizard-tab" onclick="switchWizardTab('widgets')">
-                <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/></svg>
-                Home Widget
-              </button>
-              <button class="wizard-tab" onclick="switchWizardTab('advanced')">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg>
-                Signing &amp; Engine
-              </button>
-            </div>
-
-            <!-- Tab Content 1: Branding -->
-            <div class="wizard-panel active" id="wizardPanelBranding">
-              <div class="form-row">
-                <div class="form-col">
-                  <label class="form-label" for="cfgAppName">Application Name</label>
-                  <input type="text" id="cfgAppName" class="form-input" maxlength="40" placeholder="My Android App" oninput="onAppNameChange(this.value)" />
-                  <span class="form-hint">Displayed on Android launcher &amp; app bar</span>
-                </div>
-                <div class="form-col">
-                  <label class="form-label" for="cfgPackageId">Package Identifier</label>
-                  <input type="text" id="cfgPackageId" class="form-input" maxlength="60" placeholder="com.company.app" />
-                  <span class="form-hint">Unique reverse-DNS package namespace</span>
-                </div>
-              </div>
-
-              <!-- App Icon Customizer -->
-              <div class="icon-customizer">
-                <div class="icon-preview-box">
-                  <img id="cfgIconPreview" src="" alt="Icon" class="icon-preview-img" />
-                  <div class="icon-fallback-badge hidden" id="cfgIconFallback">A</div>
-                </div>
-                <div class="icon-controls">
-                  <div class="icon-title">Application Launcher Icon</div>
-                  <div class="icon-desc">Auto-extracted from site favicon or upload custom 512x512 PNG</div>
-                  <div class="icon-actions">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('fileIconUpload').click()">
-                      <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                      Upload Custom Icon
-                    </button>
-                    <input type="file" id="fileIconUpload" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="hidden" onchange="handleCustomIcon(event)" />
-                  </div>
-                </div>
-              </div>
-
-              <!-- Colors -->
-              <div class="form-row">
-                <div class="form-col">
-                  <label class="form-label">Primary Theme Color</label>
-                  <div class="color-picker-group">
-                    <input type="color" id="cfgThemeColor" class="color-swatch-input" value="#6C63FF" onchange="onThemeColorChange(this.value)" />
-                    <input type="text" id="cfgThemeColorText" class="form-input color-text" value="#6C63FF" maxlength="7" oninput="onThemeColorChange(this.value)" />
-                  </div>
-                  <span class="form-hint">Tints status bar, navigation bar &amp; loaders</span>
-                </div>
-                <div class="form-col">
-                  <label class="form-label">UI Swatches</label>
-                  <div class="palette-swatches">
-                    <button type="button" class="color-dot" style="background:#6C63FF" onclick="onThemeColorChange('#6C63FF')"></button>
-                    <button type="button" class="color-dot" style="background:#0EA5E9" onclick="onThemeColorChange('#0EA5E9')"></button>
-                    <button type="button" class="color-dot" style="background:#10B981" onclick="onThemeColorChange('#10B981')"></button>
-                    <button type="button" class="color-dot" style="background:#F59E0B" onclick="onThemeColorChange('#F59E0B')"></button>
-                    <button type="button" class="color-dot" style="background:#EC4899" onclick="onThemeColorChange('#EC4899')"></button>
-                    <button type="button" class="color-dot" style="background:#1E293B" onclick="onThemeColorChange('#1E293B')"></button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Tab Content 2: Permissions -->
-            <div class="wizard-panel" id="wizardPanelPermissions">
-              <div class="perm-notice">
-                <svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2"/></svg>
-                <span>Selective Permissions: LinkToApp only requests permissions that your website genuinely requires, keeping user trust high.</span>
-              </div>
-              <div class="permissions-checklist" id="permissionsList"></div>
-            </div>
-
-            <!-- Tab Content 3: Home Screen Widget -->
-            <div class="wizard-panel" id="wizardPanelWidgets">
-              <div class="widget-promo-card">
-                <div class="widget-preview-box">
-                  <div class="widget-mock">
-                    <img id="widgetMockIcon" src="" alt="Icon" class="widget-mock-icon" />
-                    <div class="widget-mock-info">
-                      <div class="widget-mock-title" id="widgetMockTitle">App Title</div>
-                      <div class="widget-mock-sub">Tap to open app</div>
-                    </div>
-                    <div class="widget-mock-btn">⚡</div>
-                  </div>
-                </div>
-                <div class="widget-toggle-group">
-                  <div class="switch-row">
-                    <div>
-                      <div class="switch-title">Enable Android Home Screen Widget</div>
-                      <div class="switch-desc">Generates a native <code>AppWidgetProvider</code> for 1-tap quick launches from the user's home screen.</div>
-                    </div>
-                    <label class="switch">
-                      <input type="checkbox" id="cfgEnableWidget" checked />
-                      <span class="slider"></span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Tab Content 4: Advanced & Signing -->
-            <div class="wizard-panel" id="wizardPanelAdvanced">
-              <div class="switches-grid">
-                <div class="switch-row">
-                  <div>
-                    <div class="switch-title">Pull-to-Refresh</div>
-                    <div class="switch-desc">Android SwipeRefreshLayout support at top of page</div>
-                  </div>
-                  <label class="switch">
-                    <input type="checkbox" id="cfgEnableRefresh" checked />
-                    <span class="slider"></span>
-                  </label>
-                </div>
-
-                <div class="switch-row">
-                  <div>
-                    <div class="switch-title">Full Screen / Immersive Mode</div>
-                    <div class="switch-desc">Hide Android status bar and navigation pill</div>
-                  </div>
-                  <label class="switch">
-                    <input type="checkbox" id="cfgEnableImmersive" />
-                    <span class="slider"></span>
-                  </label>
-                </div>
-
-                <div class="switch-row">
-                  <div>
-                    <div class="switch-title">Universal Deep Linking</div>
-                    <div class="switch-desc">Open matching web links directly in the native application shell</div>
-                  </div>
-                  <label class="switch">
-                    <input type="checkbox" id="cfgEnableDeepLink" checked />
-                    <span class="slider"></span>
-                  </label>
-                </div>
-
-                <div class="switch-row">
-                  <div>
-                    <div class="switch-title">Build Variant</div>
-                    <div class="switch-desc">Debug APK (fast sideloading) or Signed Release APK</div>
-                  </div>
-                  <select id="cfgBuildType" class="form-select">
-                    <option value="debug">Debug APK (Pre-signed, Fast)</option>
-                    <option value="release">Release APK (Production)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <!-- BUILD ACTION BAR -->
-            <div class="wizard-actions">
-              <button class="btn btn-secondary" onclick="resetStudio()">
-                <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                Reset
-              </button>
-              <button class="btn btn-primary btn-generate" id="btnBuildApk" onclick="triggerBuild()">
-                <svg viewBox="0 0 24 24" fill="none" class="btn-icon"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                <span>Generate Native APK</span>
-              </button>
-            </div>
-          </div>
-
+      <!-- CARD 1: URL INPUT & AUTO-SCRAPE -->
+      <div class="glass-card card-url">
+        <div class="card-title-group">
+          <h1 class="main-title">Convert Website <span class="gradient-text">Into Android App</span></h1>
+          <p class="main-desc">Paste any URL to automatically extract branding, colors, icon &amp; permissions.</p>
         </div>
 
-        <!-- RIGHT COLUMN: INTERACTIVE SMARTPHONE PREVIEW -->
-        <div class="studio-right">
-          <div class="preview-sticky">
-            <div class="preview-top-toolbar">
-              <div class="preview-mode-tag">
-                <span class="preview-dot"></span>
-                <span id="previewHostTitle">Live Smartphone Sandbox</span>
-              </div>
-              <button class="preview-refresh-btn" onclick="reloadPreview()" title="Reload preview">
-                <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-              </button>
-            </div>
-
-            <!-- SMARTPHONE MOCKUP SHELL -->
-            <div class="phone-wrapper">
-              <div class="phone-bezel">
-                
-                <!-- Dynamic Status Bar -->
-                <div class="phone-notch-area" id="phoneStatusBar">
-                  <span class="phone-time" id="phoneClock">9:41</span>
-                  <div class="phone-speaker-notch"></div>
-                  <div class="phone-status-icons">
-                    <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L12 22l7.03-4.39C20.26 16.07 21 14.12 21 12c0-4.97-4.03-9-9-9z"/></svg>
-                    <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M2 22h20V2z"/></svg>
-                    <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><rect x="2" y="7" width="18" height="11" rx="2"/><path d="M22 11v3"/></svg>
-                  </div>
-                </div>
-
-                <!-- Phone Screen Surface -->
-                <div class="phone-screen" id="phoneScreenSurface">
-                  
-                  <!-- Placeholder Empty State -->
-                  <div class="phone-empty-state" id="phonePlaceholder">
-                    <div class="phone-orb">
-                      <svg viewBox="0 0 48 48" fill="none" width="36" height="36">
-                        <circle cx="24" cy="24" r="22" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
-                        <path d="M16 24h16M24 16v16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                      </svg>
-                    </div>
-                    <div class="empty-title">Device Screen Ready</div>
-                    <div class="empty-sub">Enter a website URL and click Deep Analyze to load preview</div>
-                  </div>
-
-                  <!-- Active Iframe -->
-                  <iframe
-                    id="phoneIframe"
-                    class="phone-iframe hidden"
-                    src=""
-                    title="Website Preview"
-                    sandbox="allow-scripts allow-forms allow-popups allow-presentation allow-same-origin"
-                    loading="lazy"
-                  ></iframe>
-
-                  <!-- Blocked fallback message -->
-                  <div class="phone-blocked hidden" id="phoneBlocked">
-                    <div class="blocked-badge">🔒</div>
-                    <div class="blocked-title">Direct Embed Protected</div>
-                    <div class="blocked-sub">This website restricts iframe embedding via CSP. Don't worry: your generated APK uses native Android WebView and will render the site with 100% fidelity.</div>
-                  </div>
-                </div>
-
-                <!-- Phone Home Pill -->
-                <div class="phone-home-indicator" id="phoneHomeBar">
-                  <div class="home-pill"></div>
-                </div>
-
-              </div>
-            </div>
-
-            <!-- Preview Notice -->
-            <div class="preview-disclaimer">
-              <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-              <span>Displays Android Pixel 8 viewport (393 × 851 dp). Full hardware APIs execute inside the compiled APK.</span>
-            </div>
+        <div class="url-input-box">
+          <span class="url-prefix">https://</span>
+          <input
+            type="text"
+            id="urlInput"
+            class="url-input-field"
+            placeholder="paste your website link here..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <div class="scrape-status" id="scrapeStatusIndicator">
+            <div class="pulse-spinner hidden" id="scrapeSpinner"></div>
+            <span class="scrape-text" id="scrapeStatusText">Auto-scraping</span>
           </div>
+          <button class="clear-btn hidden" id="clearBtn" onclick="clearInput()" title="Clear">✕</button>
         </div>
 
+        <!-- Quick Sample Chips -->
+        <div class="sample-chips">
+          <span class="chips-label">Quick samples:</span>
+          <button type="button" class="chip" onclick="loadSample('https://news.ycombinator.com')">Hacker News</button>
+          <button type="button" class="chip" onclick="loadSample('https://en.m.wikipedia.org')">Wikipedia</button>
+          <button type="button" class="chip" onclick="loadSample('https://excalidraw.com')">Excalidraw</button>
+          <button type="button" class="chip" onclick="loadSample('https://github.com')">GitHub</button>
+        </div>
+
+        <div class="alert-error-bar hidden" id="urlErrorBar"></div>
       </div>
-    </div>
 
-    <!-- ════════ VIEW 2: BUILD HISTORY & MANAGEMENT ════════ -->
-    <div class="view-panel" id="viewHistory">
-      <div class="history-container">
-        <div class="history-header">
-          <div>
-            <h2 class="history-title">Build History &amp; Projects</h2>
-            <p class="history-desc">Manage previously generated APKs, inspect build artifacts &amp; download instantly</p>
+      <!-- CARD 2: SCRAPED APP DETAILS & BRANDING -->
+      <div class="glass-card card-app-details" id="appDetailsCard">
+        <div class="app-card-header">
+          <!-- App Icon with quick change -->
+          <div class="app-icon-container" onclick="triggerIconUpload()" title="Click to upload custom icon">
+            <img id="appIconPreview" class="app-icon-img" src="" alt="App Icon" />
+            <div class="app-icon-fallback" id="appIconFallback">A</div>
+            <div class="icon-hover-overlay">
+              <svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </div>
+            <input type="file" id="iconFileInput" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="hidden" onchange="handleCustomIcon(event)" />
           </div>
-          <button class="btn btn-secondary btn-sm" onclick="loadBuildHistory()">
-            <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            Refresh
+
+          <!-- Titles & Metadata -->
+          <div class="app-info-block">
+            <div class="name-edit-wrap">
+              <input type="text" id="appNameInput" class="app-name-input" value="Website Name" maxlength="40" placeholder="App Name" oninput="onAppNameInput(this.value)" />
+              <button class="mini-edit-btn" onclick="document.getElementById('appNameInput').focus()" title="Edit Name">✎</button>
+            </div>
+            <div class="app-url-text" id="appUrlDisplay">https://yourwebsite.com</div>
+            <div class="app-pkg-text" id="appPkgDisplay">com.webtoapp.myapp</div>
+          </div>
+
+          <!-- Color Swatch & Theme Color -->
+          <div class="theme-picker-widget">
+            <div class="theme-swatch-box" id="themeSwatchBox" title="Change Theme Color">
+              <input type="color" id="themeColorPicker" class="theme-color-input" value="#6C63FF" onchange="onThemeColorChange(this.value)" />
+            </div>
+            <span class="theme-color-code" id="themeColorCode">#6C63FF</span>
+          </div>
+        </div>
+
+        <!-- Capability Badges Bar -->
+        <div class="capabilities-bar" id="capabilitiesBar">
+          <span class="cap-pill pill-score" id="pillScore">Grade A+ • 90</span>
+          <span class="cap-pill pill-pwa" id="pillPwa">PWA Cache</span>
+          <span class="cap-pill pill-ssl" id="pillSsl">HTTPS Secure</span>
+          <span class="cap-pill pill-widget" id="pillWidget">Home Widget Active</span>
+        </div>
+
+        <!-- Action Pills Bar -->
+        <div class="card-actions-bar">
+          <button type="button" class="action-pill" onclick="triggerIconUpload()">
+            <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Upload Icon
+          </button>
+          <button type="button" class="action-pill" onclick="openSettingsModal()">
+            <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="2"/></svg>
+            Native Settings
+          </button>
+          <button type="button" class="action-pill" onclick="openCompatModal()">
+            <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Compatibility Matrix
+          </button>
+        </div>
+      </div>
+
+      <!-- PRIMARY GENERATE BUTTON -->
+      <button class="btn-generate-main" id="btnGenerateApk" onclick="startApkGeneration()">
+        <span class="btn-generate-text">
+          <svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+          Generate Android APK
+        </span>
+      </button>
+
+    </section>
+
+    <!-- RIGHT PANEL: INTERACTIVE SMARTPHONE SANDBOX -->
+    <section class="studio-panel-right">
+      <div class="phone-sandbox-container">
+
+        <!-- Phone Top Bar -->
+        <div class="sandbox-toolbar">
+          <div class="sandbox-label">
+            <span class="pulse-dot"></span>
+            <span id="sandboxHostLabel">Live Device Sandbox</span>
+          </div>
+          <button class="sandbox-refresh-btn" onclick="reloadPhoneIframe()" title="Refresh Screen">
+            <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           </button>
         </div>
 
-        <div class="history-grid" id="historyList">
-          <!-- Populated dynamically via JS -->
+        <!-- Phone Device Frame -->
+        <div class="phone-frame-mockup">
+          <div class="phone-bezel">
+
+            <!-- Dynamic Status Bar -->
+            <div class="phone-status-bar" id="phoneStatusBar">
+              <span class="phone-clock" id="phoneClock">9:41</span>
+              <div class="phone-notch"></div>
+              <div class="phone-indicators">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L12 22l7.03-4.39C20.26 16.07 21 14.12 21 12c0-4.97-4.03-9-9-9z"/></svg>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M2 22h20V2z"/></svg>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="2" y="7" width="18" height="11" rx="2"/><path d="M22 11v3"/></svg>
+              </div>
+            </div>
+
+            <!-- Screen Viewport -->
+            <div class="phone-screen-area" id="phoneScreenArea">
+              <!-- Empty state -->
+              <div class="phone-empty" id="phoneEmptyState">
+                <div class="empty-icon-circle">
+                  <svg viewBox="0 0 24 24" fill="none" width="28" height="28">
+                    <rect x="5" y="2" width="14" height="20" rx="3" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 18h.01" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div class="empty-title">Device Preview</div>
+                <div class="empty-desc">Paste or select a website URL to preview in the Android shell.</div>
+              </div>
+
+              <!-- Live Iframe -->
+              <iframe
+                id="phoneIframe"
+                class="phone-iframe hidden"
+                src=""
+                title="Website Mobile Preview"
+                sandbox="allow-scripts allow-forms allow-popups allow-presentation allow-same-origin"
+                loading="lazy"
+              ></iframe>
+
+              <!-- Blocked by CSP fallback -->
+              <div class="phone-blocked hidden" id="phoneBlocked">
+                <span class="blocked-icon">🔒</span>
+                <span class="blocked-title">Iframe Protected</span>
+                <span class="blocked-note">Site restricts browser embedding. The native Android APK will load it with full fidelity.</span>
+              </div>
+            </div>
+
+            <!-- Home indicator pill -->
+            <div class="phone-home-bar">
+              <div class="home-indicator"></div>
+            </div>
+
+          </div>
         </div>
 
-        <div class="history-empty hidden" id="historyEmptyState">
-          <div class="empty-icon">📦</div>
-          <div class="empty-title">No APK builds found</div>
-          <div class="empty-sub">Enter a website URL in the App Studio and generate your first Android APK.</div>
-          <button class="btn btn-primary" onclick="switchMainTab('studio')">Open App Studio</button>
-        </div>
       </div>
-    </div>
+    </section>
 
   </main>
 
-  <!-- ─── MODAL: COMPILATION & LIVE TERMINAL ──────────────────── -->
-  <div class="modal-overlay hidden" id="buildModal">
-    <div class="modal-card">
-      <div class="modal-header">
-        <div class="modal-pulse-icon">
-          <svg viewBox="0 0 24 24" fill="none" width="28" height="28">
-            <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
+  <!-- ─── MODAL 1: NATIVE SETTINGS & PERMISSIONS ──────────────── -->
+  <div class="modal-backdrop hidden" id="settingsModal">
+    <div class="modal-window">
+      <div class="modal-top">
         <div>
-          <h2 class="modal-title">Compiling Android APK</h2>
-          <div class="modal-app-name" id="modalAppName">My App</div>
+          <h2 class="modal-heading">Native Android Settings</h2>
+          <p class="modal-sub">Configure Android permissions, home screen widget, and runtime behavior.</p>
+        </div>
+        <button class="modal-close-btn" onclick="closeSettingsModal()">✕</button>
+      </div>
+
+      <div class="modal-scroll-body">
+        
+        <!-- Section: Home Screen Widget -->
+        <div class="settings-group">
+          <div class="group-title">Home Screen Widget</div>
+          <div class="switch-card">
+            <div class="switch-meta">
+              <span class="switch-name">Android Quick-Launch Widget</span>
+              <span class="switch-hint">Generates native <code>AppWidgetProvider</code> for 1-tap launcher on Android home screens.</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cfgWidget" checked />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Section: Runtime Permissions -->
+        <div class="settings-group">
+          <div class="group-title">Selective Permissions</div>
+          <div class="permissions-grid" id="settingsPermList">
+            <!-- Dynamically populated from scraper -->
+          </div>
+        </div>
+
+        <!-- Section: Experience & Display -->
+        <div class="settings-group">
+          <div class="group-title">Experience &amp; Display</div>
+          <div class="switch-card">
+            <div class="switch-meta">
+              <span class="switch-name">Swipe-to-Refresh</span>
+              <span class="switch-hint">Android SwipeRefreshLayout when scrolled to the top.</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cfgRefresh" checked />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+
+          <div class="switch-card">
+            <div class="switch-meta">
+              <span class="switch-name">Immersive Fullscreen Mode</span>
+              <span class="switch-hint">Hides Android status bar and system navigation buttons.</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cfgImmersive" />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+
+          <div class="switch-card">
+            <div class="switch-meta">
+              <span class="switch-name">Universal Deep Linking</span>
+              <span class="switch-hint">Opens matching web URLs directly in your native Android app.</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cfgDeepLink" checked />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Section: Build Type -->
+        <div class="settings-group">
+          <div class="group-title">Build Variant</div>
+          <select id="cfgBuildType" class="select-field">
+            <option value="debug">Debug APK (Pre-signed, Fast Sideloading)</option>
+            <option value="release">Release APK (Production)</option>
+          </select>
+        </div>
+
+      </div>
+
+      <div class="modal-bottom">
+        <button class="btn-secondary" onclick="closeSettingsModal()">Save &amp; Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── MODAL 2: COMPATIBILITY MATRIX ──────────────────────── -->
+  <div class="modal-backdrop hidden" id="compatModal">
+    <div class="modal-window">
+      <div class="modal-top">
+        <div>
+          <h2 class="modal-heading">Website Compatibility Report</h2>
+          <p class="modal-sub">Deep audit of web APIs, mobile readiness, and native hardware support.</p>
+        </div>
+        <button class="modal-close-btn" onclick="closeCompatModal()">✕</button>
+      </div>
+
+      <div class="modal-scroll-body">
+        <div class="compat-summary-box">
+          <div class="score-circle-sm" id="modalScoreVal">90</div>
+          <div>
+            <div class="score-title" id="modalScoreTitle">Grade A+ • Mobile Ready</div>
+            <div class="score-desc" id="modalScoreDesc">Optimized for Android WebView conversion.</div>
+          </div>
+        </div>
+
+        <div class="compat-cards-grid" id="compatCardsGrid">
+          <!-- Populated from compatibility report -->
+        </div>
+      </div>
+
+      <div class="modal-bottom">
+        <button class="btn-secondary" onclick="closeCompatModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── MODAL 3: BUILD EXECUTION & STREAMING LOGS ──────────── -->
+  <div class="modal-backdrop hidden" id="buildProgressModal">
+    <div class="modal-window build-window">
+      <div class="build-header">
+        <div class="build-pulse-icon">⚡</div>
+        <div>
+          <h2 class="modal-heading">Generating Android APK</h2>
+          <div class="build-app-label" id="buildAppNameDisplay">Application</div>
         </div>
       </div>
 
       <!-- Progress Track -->
-      <div class="progress-container">
-        <div class="progress-bar-track">
-          <div class="progress-bar-fill" id="buildProgressFill"></div>
-        </div>
-        <div class="progress-stats">
-          <span class="progress-stage" id="buildStageText">Initializing compilation pipeline...</span>
-          <span class="progress-percent" id="buildPercentText">0%</span>
-        </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-fill" id="buildProgressBar"></div>
+      </div>
+      <div class="progress-info-row">
+        <span class="progress-stage-name" id="buildStageName">Compiling with Gradle...</span>
+        <span class="progress-pct-num" id="buildPctNum">0%</span>
       </div>
 
-      <!-- Step Pipeline -->
-      <div class="pipeline-steps">
-        <div class="pipeline-step" id="pstep-0">
-          <div class="pstep-bullet">1</div>
-          <span class="pstep-label">Validate Site &amp; SSL</span>
-        </div>
-        <div class="pipeline-step" id="pstep-1">
-          <div class="pstep-bullet">2</div>
-          <span class="pstep-label">Extract High-Res Assets</span>
-        </div>
-        <div class="pipeline-step" id="pstep-2">
-          <div class="pstep-bullet">3</div>
-          <span class="pstep-label">Scaffold Native Shell</span>
-        </div>
-        <div class="pipeline-step" id="pstep-3">
-          <div class="pstep-bullet">4</div>
-          <span class="pstep-label">Inject Bridge &amp; Widgets</span>
-        </div>
-        <div class="pipeline-step" id="pstep-4">
-          <div class="pstep-bullet">5</div>
-          <span class="pstep-label">Android Gradle Compilation</span>
-        </div>
-        <div class="pipeline-step" id="pstep-5">
-          <div class="pstep-bullet">6</div>
-          <span class="pstep-label">Package &amp; Sign APK</span>
-        </div>
+      <!-- Live Pipeline Checklist -->
+      <div class="pipeline-grid">
+        <div class="pipe-node" id="node-0">1. Inspect Website</div>
+        <div class="pipe-node" id="node-1">2. Extract Assets</div>
+        <div class="pipe-node" id="node-2">3. Scaffold Shell</div>
+        <div class="pipe-node" id="node-3">4. Inject Bridge</div>
+        <div class="pipe-node" id="node-4">5. Gradle Build</div>
+        <div class="pipe-node" id="node-5">6. Sign &amp; Package</div>
       </div>
 
-      <!-- Live Terminal Drawer -->
-      <div class="terminal-box">
-        <div class="terminal-bar">
-          <span class="terminal-dots"><span></span><span></span><span></span></span>
-          <span class="terminal-title">Gradle Daemon Compilation Console</span>
-          <button class="terminal-toggle-btn" onclick="toggleTerminalView()" id="termToggleBtn">Expand</button>
+      <!-- Live Terminal Console -->
+      <div class="console-box">
+        <div class="console-header">
+          <span>Gradle Daemon Console</span>
+          <button class="console-expand-btn" onclick="toggleConsoleSize()" id="consoleToggleBtn">Expand</button>
         </div>
-        <pre class="terminal-log" id="terminalOutput">Connecting to build worker...</pre>
+        <pre class="console-body" id="consoleLogOutput">Initializing build environment...</pre>
       </div>
     </div>
   </div>
 
-  <!-- ─── MODAL: DOWNLOAD & SIDELOADING HUB ────────────────────── -->
-  <div class="modal-overlay hidden" id="downloadModal">
-    <div class="modal-card download-modal-card">
-      <div class="download-badge-ring">
-        <div class="check-mark">✓</div>
-      </div>
-      <h2 class="modal-title">APK Compiled Successfully!</h2>
-      <p class="modal-sub">Your production-ready Android application is signed and ready for installation.</p>
+  <!-- ─── MODAL 4: DOWNLOAD & QR CODE ────────────────────────── -->
+  <div class="modal-backdrop hidden" id="downloadModal">
+    <div class="modal-window download-window">
+      <div class="success-ring">✓</div>
+      <h2 class="modal-heading">Android APK Ready!</h2>
+      <p class="modal-sub">Compiled and signed successfully for Android 5.0–16 (API 21–36).</p>
 
-      <div class="download-summary-card">
-        <img id="dlAppIcon" src="" alt="App Icon" class="dl-app-icon" />
-        <div class="dl-details">
-          <div class="dl-name" id="dlAppNameText">Application Name</div>
-          <div class="dl-pkg" id="dlAppPkgText">com.webtoapp.example</div>
-          <div class="dl-chips">
-            <span class="dl-chip chip-size" id="dlAppSize">5.8 MB</span>
-            <span class="dl-chip chip-sdk">Android 5.0 - 16 (API 21-36)</span>
-            <span class="dl-chip chip-type">Universal ARM/x86</span>
+      <div class="apk-card-preview">
+        <img id="dlIconPreview" class="apk-icon" src="" alt="Icon" />
+        <div class="apk-meta">
+          <div class="apk-title" id="dlTitleText">App Name</div>
+          <div class="apk-pkg" id="dlPkgText">com.webtoapp.example</div>
+          <div class="apk-badges">
+            <span class="badge" id="dlSizeBadge">5.6 MB</span>
+            <span class="badge">Universal ARM/x86</span>
+            <span class="badge">Install-Ready</span>
           </div>
         </div>
       </div>
 
-      <!-- Download & QR Code Grid -->
-      <div class="dl-action-grid">
-        <div class="dl-btn-box">
-          <a id="btnDownloadApkFile" href="#" class="btn btn-primary btn-large btn-download-file" download>
-            <svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Download Android APK
+      <div class="dl-split-grid">
+        <div class="dl-left-actions">
+          <a id="apkDownloadLink" href="#" class="btn-dl-primary" download>
+            <svg viewBox="0 0 24 24" fill="none" width="20" height="20"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Download APK File
           </a>
-          <button class="btn btn-secondary btn-large" onclick="closeDownloadModal()">
-            Build Another App
+          <button class="btn-secondary" onclick="closeDownloadModal()">
+            Convert Another Website
           </button>
         </div>
 
-        <div class="qr-code-box">
-          <img id="qrCodeImage" src="" alt="Scan QR Code" class="qr-image" />
-          <div class="qr-label">Scan with your phone to download directly</div>
+        <div class="dl-qr-box">
+          <img id="dlQrImage" src="" alt="QR Code" class="qr-code-img" />
+          <span class="qr-text">Scan with phone camera to download directly</span>
         </div>
       </div>
-
-      <!-- Sideloading Instructions -->
-      <div class="install-card">
-        <div class="install-header">
-          <span class="install-title">How to Install on Android Device:</span>
-        </div>
-        <div class="install-steps">
-          <div class="istep">
-            <span class="istep-num">1</span>
-            <span>Download or transfer the <code>.apk</code> to your device.</span>
-          </div>
-          <div class="istep">
-            <span class="istep-num">2</span>
-            <span>Tap on the downloaded APK file in Files or Downloads.</span>
-          </div>
-          <div class="istep">
-            <span class="istep-num">3</span>
-            <span>When prompted, allow <strong>"Install unknown apps"</strong> for your browser/file manager.</span>
-          </div>
-          <div class="istep">
-            <span class="istep-num">4</span>
-            <span>Confirm <strong>"Install"</strong> and launch your new native application!</span>
-          </div>
-        </div>
-      </div>
-
     </div>
   </div>
 
-  <!-- ─── MODAL: BUILD ERROR ──────────────────────────────────── -->
-  <div class="modal-overlay hidden" id="errorModal">
-    <div class="modal-card error-modal-card">
-      <div class="error-badge-ring">⚠️</div>
-      <h2 class="modal-title">Build Pipeline Error</h2>
-      <p class="modal-sub" id="buildErrorDetail">An issue occurred during Android Gradle compilation.</p>
-      <div class="error-log-box" id="errorLogBox"></div>
-      <div class="modal-actions">
-        <button class="btn btn-primary" onclick="closeErrorModal()">Dismiss &amp; Retry</button>
+  <!-- ─── MODAL 5: BUILD HISTORY ─────────────────────────────── -->
+  <div class="modal-backdrop hidden" id="historyModal">
+    <div class="modal-window history-window">
+      <div class="modal-top">
+        <div>
+          <h2 class="modal-heading">Build History &amp; Projects</h2>
+          <p class="modal-sub">View and re-download previously generated Android applications.</p>
+        </div>
+        <button class="modal-close-btn" onclick="closeHistoryModal()">✕</button>
+      </div>
+
+      <div class="modal-scroll-body">
+        <div class="history-list-grid" id="historyItemsList">
+          <!-- Populated from API -->
+        </div>
+        <div class="history-empty-box hidden" id="historyEmptyBox">
+          <span>📦 No build history found yet. Enter a URL to generate your first APK!</span>
+        </div>
+      </div>
+
+      <div class="modal-bottom">
+        <button class="btn-secondary" onclick="closeHistoryModal()">Close</button>
       </div>
     </div>
   </div>

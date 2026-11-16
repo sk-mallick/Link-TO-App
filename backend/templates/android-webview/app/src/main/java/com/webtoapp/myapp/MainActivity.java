@@ -7,11 +7,15 @@ import android.app.Activity;
 import android.app.DownloadManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.media.MediaScannerConnection;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -27,6 +31,7 @@ import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.JavascriptInterface;
+import android.webkit.MimeTypeMap;
 import android.webkit.PermissionRequest;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
@@ -48,12 +53,15 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -81,7 +89,7 @@ public class MainActivity extends AppCompatActivity {
     private GeolocationPermissions.Callback pendingGeoCallback;
     private String pendingGeoOrigin;
 
-    @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
+    @SuppressLint({ "SetJavaScriptEnabled", "JavascriptInterface" })
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -192,7 +200,7 @@ public class MainActivity extends AppCompatActivity {
         // Native JavaScript Bridge
         webView.addJavascriptInterface(new AppNativeBridge(this), "AndroidApp");
 
-        // Native Download Listener
+        // Native Download Listener (handles normal downloads, blob: and data: URLs)
         webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
             handleDownload(url, userAgent, contentDisposition, mimetype);
         });
@@ -208,6 +216,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
             progressBar.setVisibility(View.VISIBLE);
+            injectDownloadHelper(view);
         }
 
         @Override
@@ -216,6 +225,8 @@ public class MainActivity extends AppCompatActivity {
             swipeRefreshLayout.setRefreshing(false);
             showOfflineScreen(false);
             hideSplashScreen();
+            injectDownloadHelper(view);
+            CookieManager.getInstance().flush();
         }
 
         @Override
@@ -239,7 +250,20 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private boolean handleExternalUrl(String url) {
-            if (url == null) return false;
+            if (url == null)
+                return false;
+
+            // Intercept client-side blob: URLs so they download properly
+            if (url.startsWith("blob:")) {
+                handleBlobDownload(url, null, null);
+                return true;
+            }
+
+            // Intercept data: URLs so they download properly
+            if (url.startsWith("data:")) {
+                handleDataUriDownload(url, null);
+                return true;
+            }
 
             // Handle special schemes: tel, mailto, sms, geo, whatsapp, intent
             if (url.startsWith("tel:") || url.startsWith("mailto:") || url.startsWith("sms:") ||
@@ -249,7 +273,8 @@ public class MainActivity extends AppCompatActivity {
                     startActivity(intent);
                     return true;
                 } catch (Exception e) {
-                    Toast.makeText(MainActivity.this, "No supported app found for this action", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "No supported app found for this action", Toast.LENGTH_SHORT)
+                            .show();
                     return true;
                 }
             }
@@ -268,7 +293,7 @@ public class MainActivity extends AppCompatActivity {
         // Native File Chooser (HTML5 <input type="file">)
         @Override
         public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback,
-                                         FileChooserParams fileChooserParams) {
+                FileChooserParams fileChooserParams) {
             if (MainActivity.this.filePathCallback != null) {
                 MainActivity.this.filePathCallback.onReceiveValue(null);
             }
@@ -287,8 +312,7 @@ public class MainActivity extends AppCompatActivity {
                     Uri photoURI = FileProvider.getUriForFile(
                             MainActivity.this,
                             getPackageName() + ".fileprovider",
-                            photoFile
-                    );
+                            photoFile);
                     takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
                 }
             }
@@ -299,7 +323,7 @@ public class MainActivity extends AppCompatActivity {
 
             Intent[] intentArray;
             if (takePictureIntent != null) {
-                intentArray = new Intent[]{takePictureIntent};
+                intentArray = new Intent[] { takePictureIntent };
             } else {
                 intentArray = new Intent[0];
             }
@@ -324,9 +348,9 @@ public class MainActivity extends AppCompatActivity {
                 pendingGeoOrigin = origin;
                 ActivityCompat.requestPermissions(
                         MainActivity.this,
-                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION},
-                        PERMISSION_REQUEST_CODE
-                );
+                        new String[] { Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION },
+                        PERMISSION_REQUEST_CODE);
             }
         }
 
@@ -352,18 +376,19 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
-            if (filePathCallback == null) return;
+            if (filePathCallback == null)
+                return;
 
             Uri[] results = null;
             if (resultCode == Activity.RESULT_OK) {
                 if (data == null || data.getData() == null) {
                     if (cameraPhotoPath != null) {
-                        results = new Uri[]{Uri.parse(cameraPhotoPath)};
+                        results = new Uri[] { Uri.parse(cameraPhotoPath) };
                     }
                 } else {
                     String dataString = data.getDataString();
                     if (dataString != null) {
-                        results = new Uri[]{Uri.parse(dataString)};
+                        results = new Uri[] { Uri.parse(dataString) };
                     }
                 }
             }
@@ -372,15 +397,137 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Injects JavaScript helpers into the WebView:
+     * 1. Preserves blob URLs (delays revokeObjectURL so the native bridge can read
+     * them).
+     * 2. Intercepts anchor clicks to capture the intended 'download' filename.
+     * 3. Polyfills navigator.share for native Android sharing.
+     */
+    private void injectDownloadHelper(WebView view) {
+        if (view == null)
+            return;
+        String js = "(function() {" +
+                "  if (window.__ltaDownloadHelperInstalled) return;" +
+                "  window.__ltaDownloadHelperInstalled = true;" +
+                "  var origRevoke = window.URL ? window.URL.revokeObjectURL : null;" +
+                "  if (origRevoke) {" +
+                "    window.URL.revokeObjectURL = function(u) {" +
+                "      setTimeout(function() {" +
+                "        try { origRevoke.call(window.URL, u); } catch(e) {}" +
+                "      }, 60000);" +
+                "    };" +
+                "  }" +
+                "  var origClick = HTMLAnchorElement.prototype.click;" +
+                "  HTMLAnchorElement.prototype.click = function() {" +
+                "    try {" +
+                "      var fn = this.getAttribute('download') || this.download || '';" +
+                "      if (fn) { window.__lastDownloadFilename = fn; }" +
+                "    } catch(e) {}" +
+                "    return origClick.apply(this, arguments);" +
+                "  };" +
+                "  document.addEventListener('click', function(e) {" +
+                "    try {" +
+                "      var el = e.target;" +
+                "      while (el && el !== document) {" +
+                "        if (el.tagName === 'A') {" +
+                "          var fn = el.getAttribute('download') || el.download || '';" +
+                "          if (fn) { window.__lastDownloadFilename = fn; break; }" +
+                "        }" +
+                "        el = el.parentElement;" +
+                "      }" +
+                "    } catch(e) {}" +
+                "  }, true);" +
+                "  if (!navigator.share && window.AndroidApp && window.AndroidApp.share) {" +
+                "    navigator.share = function(data) {" +
+                "      return new Promise(function(resolve, reject) {" +
+                "        try {" +
+                "          window.AndroidApp.share(data.title || '', data.text || '', data.url || '');" +
+                "          resolve();" +
+                "        } catch(err) { reject(err); }" +
+                "      });" +
+                "    };" +
+                "  }" +
+                "})();";
+        view.evaluateJavascript(js, null);
+    }
+
+    /**
+     * Resolves a clean, sanitized filename with an appropriate file extension.
+     */
+    private String resolveFilename(String suggestedName, String contentDisposition, String mimeType, String url) {
+        String name = suggestedName;
+        if (name == null || name.trim().isEmpty() || name.equalsIgnoreCase("downloadfile.bin")) {
+            if (contentDisposition != null && !contentDisposition.isEmpty() && url != null) {
+                name = URLUtil.guessFileName(url, contentDisposition, mimeType);
+            }
+        }
+
+        String ext = "";
+        if (mimeType != null && !mimeType.isEmpty()) {
+            ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType);
+            if (ext == null || ext.isEmpty()) {
+                if ("application/pdf".equalsIgnoreCase(mimeType))
+                    ext = "pdf";
+                else if ("image/png".equalsIgnoreCase(mimeType))
+                    ext = "png";
+                else if ("image/jpeg".equalsIgnoreCase(mimeType))
+                    ext = "jpg";
+                else if ("text/csv".equalsIgnoreCase(mimeType))
+                    ext = "csv";
+                else if ("application/json".equalsIgnoreCase(mimeType))
+                    ext = "json";
+            }
+        }
+
+        if (name == null || name.trim().isEmpty() || name.equalsIgnoreCase("downloadfile.bin")) {
+            String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+            name = "Document_" + timeStamp + (ext.isEmpty() ? ".pdf" : "." + ext);
+        } else {
+            name = name.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+            if (!name.contains(".") && !ext.isEmpty()) {
+                name = name + "." + ext;
+            } else if (name.endsWith(".bin") && !ext.isEmpty() && !ext.equals("bin")) {
+                name = name.substring(0, name.length() - 4) + "." + ext;
+            }
+        }
+        return name;
+    }
+
+    /**
+     * Master download handler supporting HTTP/HTTPS, blob:, and data: schemes.
+     */
     private void handleDownload(String url, String userAgent, String contentDisposition, String mimetype) {
+        if (url == null)
+            return;
+
+        // 1. Intercept client-side blob: URLs
+        if (url.startsWith("blob:")) {
+            handleBlobDownload(url, contentDisposition, mimetype);
+            return;
+        }
+
+        // 2. Intercept data: URLs
+        if (url.startsWith("data:")) {
+            handleDataUriDownload(url, mimetype);
+            return;
+        }
+
+        // 3. Standard HTTP / HTTPS network downloads via DownloadManager
         try {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-            request.setMimeType(mimetype);
+            if (mimetype != null && !mimetype.isEmpty()) {
+                request.setMimeType(mimetype);
+            }
             String cookies = CookieManager.getInstance().getCookie(url);
-            request.addRequestHeader("cookie", cookies);
-            request.addRequestHeader("User-Agent", userAgent);
+            if (cookies != null) {
+                request.addRequestHeader("cookie", cookies);
+            }
+            if (userAgent != null) {
+                request.addRequestHeader("User-Agent", userAgent);
+            }
             request.setDescription("Downloading file from " + getString(R.string.app_name));
-            String filename = URLUtil.guessFileName(url, contentDisposition, mimetype);
+            String filename = resolveFilename(null, contentDisposition, mimetype, url);
             request.setTitle(filename);
             request.allowScanningByMediaScanner();
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
@@ -393,6 +540,225 @@ public class MainActivity extends AppCompatActivity {
             }
         } catch (Exception e) {
             Toast.makeText(this, "Download failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * Intercepts and downloads blob: URLs by fetching the binary data inside the
+     * WebView's JavaScript context and piping Base64 bytes to the native bridge.
+     */
+    private void handleBlobDownload(String url, String contentDisposition, String mimetype) {
+        runOnUiThread(() -> {
+            Toast.makeText(this, "Downloading file...", Toast.LENGTH_SHORT).show();
+
+            String escapedUrl = url.replace("\\", "\\\\").replace("'", "\\'");
+            String safeMime = (mimetype != null) ? mimetype.replace("'", "\\'") : "";
+
+            String js = "(function() {" +
+                    "  try {" +
+                    "    var blobUrl = '" + escapedUrl + "';" +
+                    "    var targetFilename = window.__lastDownloadFilename || '';" +
+                    "    window.__lastDownloadFilename = '';" +
+                    "    function sendBlob(b, mime) {" +
+                    "      var reader = new FileReader();" +
+                    "      reader.onloadend = function() {" +
+                    "        if (window.AndroidApp && window.AndroidApp.saveBase64File) {" +
+                    "          window.AndroidApp.saveBase64File(reader.result, mime || b.type, targetFilename);" +
+                    "        }" +
+                    "      };" +
+                    "      reader.onerror = function() {" +
+                    "        if (window.AndroidApp && window.AndroidApp.showToast) {" +
+                    "          window.AndroidApp.showToast('Failed to read file from blob');" +
+                    "        }" +
+                    "      };" +
+                    "      reader.readAsDataURL(b);" +
+                    "    }" +
+                    "    if (window.fetch) {" +
+                    "      fetch(blobUrl)" +
+                    "        .then(function(r) {" +
+                    "          var mime = r.headers.get('content-type') || '" + safeMime + "';" +
+                    "          return r.blob().then(function(b) { sendBlob(b, mime); });" +
+                    "        })" +
+                    "        .catch(function() { tryXhr(); });" +
+                    "    } else {" +
+                    "      tryXhr();" +
+                    "    }" +
+                    "    function tryXhr() {" +
+                    "      var xhr = new XMLHttpRequest();" +
+                    "      xhr.open('GET', blobUrl, true);" +
+                    "      xhr.responseType = 'blob';" +
+                    "      xhr.onload = function() {" +
+                    "        if (xhr.status === 200 || xhr.status === 0) {" +
+                    "          sendBlob(xhr.response, xhr.response.type || '" + safeMime + "');" +
+                    "        } else if (window.AndroidApp) {" +
+                    "          window.AndroidApp.showToast('Could not load file data');" +
+                    "        }" +
+                    "      };" +
+                    "      xhr.onerror = function() {" +
+                    "        if (window.AndroidApp) {" +
+                    "          window.AndroidApp.showToast('Network error reading file');" +
+                    "        }" +
+                    "      };" +
+                    "      xhr.send();" +
+                    "    }" +
+                    "  } catch(e) {" +
+                    "    if (window.AndroidApp && window.AndroidApp.showToast) {" +
+                    "      window.AndroidApp.showToast('Download error: ' + e.message);" +
+                    "    }" +
+                    "  }" +
+                    "})();";
+
+            webView.evaluateJavascript(js, null);
+        });
+    }
+
+    /**
+     * Intercepts and downloads data: URLs directly.
+     */
+    private void handleDataUriDownload(String url, String mimetype) {
+        saveBase64ToDownloads(url, mimetype, null);
+    }
+
+    /**
+     * Decodes Base64 data and writes the file into Android's public Downloads
+     * directory
+     * using MediaStore on Android 10+ (API 29+) or legacy public storage on older
+     * versions.
+     */
+    public void saveBase64ToDownloads(String base64Data, String mimeType, String filename) {
+        new Thread(() -> {
+            try {
+                if (base64Data == null || base64Data.isEmpty()) {
+                    runOnUiThread(() -> Toast.makeText(this, "Empty file received", Toast.LENGTH_SHORT).show());
+                    return;
+                }
+
+                String cleanMime = mimeType;
+                String pureBase64 = base64Data;
+                if (pureBase64.contains(",")) {
+                    int commaIdx = pureBase64.indexOf(",");
+                    String header = pureBase64.substring(0, commaIdx);
+                    if (header.contains(":") && header.contains(";")) {
+                        String detectedMime = header.substring(header.indexOf(":") + 1, header.indexOf(";")).trim();
+                        if (!detectedMime.isEmpty() && (cleanMime == null || cleanMime.isEmpty()
+                                || cleanMime.equals("application/octet-stream"))) {
+                            cleanMime = detectedMime;
+                        }
+                    }
+                    pureBase64 = pureBase64.substring(commaIdx + 1);
+                }
+
+                byte[] fileBytes = android.util.Base64.decode(pureBase64, android.util.Base64.DEFAULT);
+                if (fileBytes == null || fileBytes.length == 0) {
+                    runOnUiThread(() -> Toast.makeText(this, "Invalid file data", Toast.LENGTH_SHORT).show());
+                    return;
+                }
+
+                final String finalMime = (cleanMime != null && !cleanMime.isEmpty()) ? cleanMime : "application/pdf";
+                final String finalFilename = resolveFilename(filename, null, finalMime, null);
+
+                Uri savedUri = null;
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContentResolver resolver = getContentResolver();
+                    ContentValues contentValues = new ContentValues();
+                    contentValues.put(MediaStore.Downloads.DISPLAY_NAME, finalFilename);
+                    contentValues.put(MediaStore.Downloads.MIME_TYPE, finalMime);
+                    contentValues.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                    contentValues.put(MediaStore.Downloads.IS_PENDING, 1);
+
+                    savedUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues);
+                    if (savedUri != null) {
+                        try (OutputStream os = resolver.openOutputStream(savedUri)) {
+                            if (os != null) {
+                                os.write(fileBytes);
+                                os.flush();
+                            }
+                        }
+                        contentValues.clear();
+                        contentValues.put(MediaStore.Downloads.IS_PENDING, 0);
+                        resolver.update(savedUri, contentValues, null, null);
+                    }
+                } else {
+                    File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                    if (!downloadsDir.exists()) {
+                        downloadsDir.mkdirs();
+                    }
+                    File targetFile = new File(downloadsDir, finalFilename);
+                    int counter = 1;
+                    String nameWithoutExt = finalFilename.contains(".")
+                            ? finalFilename.substring(0, finalFilename.lastIndexOf('.'))
+                            : finalFilename;
+                    String ext = finalFilename.contains(".") ? finalFilename.substring(finalFilename.lastIndexOf('.'))
+                            : "";
+                    while (targetFile.exists()) {
+                        targetFile = new File(downloadsDir, nameWithoutExt + " (" + counter + ")" + ext);
+                        counter++;
+                    }
+
+                    try (FileOutputStream fos = new FileOutputStream(targetFile)) {
+                        fos.write(fileBytes);
+                        fos.flush();
+                    }
+
+                    MediaScannerConnection.scanFile(this, new String[] { targetFile.getAbsolutePath() },
+                            new String[] { finalMime }, null);
+                    try {
+                        savedUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", targetFile);
+                    } catch (Exception e) {
+                        savedUri = Uri.fromFile(targetFile);
+                    }
+                }
+
+                final Uri notifUri = savedUri;
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Downloaded: " + finalFilename, Toast.LENGTH_LONG).show();
+                    sendDownloadNotification(finalFilename, notifUri, finalMime);
+                });
+
+            } catch (Exception e) {
+                final String err = e.getMessage();
+                runOnUiThread(() -> Toast.makeText(this, "Download failed: " + err, Toast.LENGTH_SHORT).show());
+            }
+        }).start();
+    }
+
+    /**
+     * Posts a system notification indicating download completion and allows opening
+     * the file directly.
+     */
+    private void sendDownloadNotification(String filename, Uri fileUri, String mimeType) {
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null)
+                return;
+
+            PendingIntent pendingIntent = null;
+            if (fileUri != null) {
+                Intent viewIntent = new Intent(Intent.ACTION_VIEW);
+                viewIntent.setDataAndType(fileUri, mimeType);
+                viewIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    flags |= PendingIntent.FLAG_IMMUTABLE;
+                }
+                pendingIntent = PendingIntent.getActivity(this, (int) System.currentTimeMillis(), viewIntent, flags);
+            }
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                    .setContentTitle("Download Complete")
+                    .setContentText(filename)
+                    .setAutoCancel(true)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH);
+
+            if (pendingIntent != null) {
+                builder.setContentIntent(pendingIntent);
+            }
+
+            int notifId = (int) (System.currentTimeMillis() % 100000);
+            nm.notify(notifId, builder.build());
+        } catch (Exception ignored) {
         }
     }
 
@@ -413,10 +779,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void requestAndroid13NotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(this,
+                    Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        new String[] { Manifest.permission.POST_NOTIFICATIONS },
                         PERMISSION_REQUEST_CODE + 1);
             }
         }
@@ -449,15 +815,16 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isNetworkAvailable() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (cm == null) return false;
+        if (cm == null)
+            return false;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Network network = cm.getActiveNetwork();
-            if (network == null) return false;
+            if (network == null)
+                return false;
             NetworkCapabilities capabilities = cm.getNetworkCapabilities(network);
-            return capabilities != null && (
-                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
+            return capabilities != null && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
         } else {
             android.net.NetworkInfo info = cm.getActiveNetworkInfo();
             return info != null && info.isConnected();
@@ -502,7 +869,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+            @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (pendingGeoCallback != null && pendingGeoOrigin != null) {
@@ -526,11 +894,16 @@ public class MainActivity extends AppCompatActivity {
     /**
      * JavaScript Native Bridge Interface
      */
-    public static class AppNativeBridge {
-        private final Activity activity;
+    public class AppNativeBridge {
+        private final MainActivity activity;
 
-        public AppNativeBridge(Activity activity) {
+        public AppNativeBridge(MainActivity activity) {
             this.activity = activity;
+        }
+
+        @JavascriptInterface
+        public void saveBase64File(String base64Data, String mimeType, String filename) {
+            activity.saveBase64ToDownloads(base64Data, mimeType, filename);
         }
 
         @JavascriptInterface
@@ -546,9 +919,7 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void showToast(String message) {
-            activity.runOnUiThread(() ->
-                    Toast.makeText(activity, message, Toast.LENGTH_SHORT).show()
-            );
+            activity.runOnUiThread(() -> Toast.makeText(activity, message, Toast.LENGTH_SHORT).show());
         }
 
         @JavascriptInterface

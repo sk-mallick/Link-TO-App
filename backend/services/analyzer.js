@@ -1,6 +1,7 @@
 const fetch = require('node-fetch');
 const cheerio = require('cheerio');
 const urlModule = require('url');
+const { smartFetch } = require('../utils/smartFetcher');
 
 /**
  * Deep website analysis engine
@@ -16,7 +17,7 @@ async function analyzeWebsite(targetUrl) {
   const baseOrigin = parsedUrl.origin;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
+  const timeout = setTimeout(() => controller.abort(), 15000);
 
   let response;
   let html = '';
@@ -24,14 +25,13 @@ async function analyzeWebsite(targetUrl) {
   let statusCode = 200;
 
   try {
-    response = await fetch(cleanUrl, {
+    response = await smartFetch(cleanUrl, {
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
       },
-      redirect: 'follow',
     });
     clearTimeout(timeout);
     statusCode = response.status;
@@ -58,16 +58,47 @@ async function analyzeWebsite(targetUrl) {
   // 4. PWA & Service Worker Detection
   const pwa = await auditPWA($, html, baseOrigin);
 
-  // 5. Browser APIs, Permissions & Sensors
+  // Enrich meta branding from PWA manifest if available
+  if (pwa.manifestDetails) {
+    if (pwa.manifestDetails.name && (!meta.appName || meta.appName === 'My App')) {
+      meta.appName = pwa.manifestDetails.name;
+      meta.packageName = derivePackageName(meta.appName, parsedUrl.hostname);
+    }
+    if (pwa.manifestDetails.theme_color && meta.themeColor === '#6C63FF') {
+      meta.themeColor = sanitizeColor(pwa.manifestDetails.theme_color);
+    }
+  }
+
+  // 5. Pre-fetch icon into base64 so frontend preview and APK build always have high-res image
+  let iconBase64 = null;
+  const targetFavicon = meta.favicon;
+  if (targetFavicon && /^https?:\/\//i.test(targetFavicon)) {
+    try {
+      const iconRes = await smartFetch(targetFavicon, { timeout: 6000 });
+      if (iconRes.ok) {
+        const ct = iconRes.headers.get('content-type') || 'image/png';
+        const buf = await iconRes.buffer();
+        if (buf && buf.length > 50 && buf.length < 5 * 1024 * 1024) {
+          iconBase64 = `data:${ct.includes('image') ? ct : 'image/png'};base64,${buf.toString('base64')}`;
+          meta.iconBase64 = iconBase64;
+          meta.favicon = iconBase64; // Set reliable base64 directly
+        }
+      }
+    } catch (e) {
+      // Keep original favicon URL if prefetch times out
+    }
+  }
+
+  // 6. Browser APIs, Permissions & Sensors
   const capabilities = detectCapabilities($, html);
 
-  // 6. Navigation, Forms & Auth Detection
+  // 7. Navigation, Forms & Auth Detection
   const formsAndAuth = detectFormsAndAuth($, html, cleanUrl);
 
-  // 7. Security & HTTPS Audit
+  // 8. Security & HTTPS Audit
   const security = auditSecurity(cleanUrl, responseHeaders, html);
 
-  // 8. Recommended Android Permissions based on detected capabilities
+  // 9. Recommended Android Permissions based on detected capabilities
   const permissions = deriveRecommendedPermissions(capabilities, formsAndAuth);
 
   return {
@@ -170,8 +201,12 @@ function resolveUrl(href, baseOrigin) {
   href = href.trim();
   if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('data:')) return href;
   if (href.startsWith('//')) return 'https:' + href;
-  if (href.startsWith('/')) return baseOrigin + href;
-  return baseOrigin + '/' + href;
+  try {
+    return new URL(href, baseOrigin).href;
+  } catch {
+    if (href.startsWith('/')) return baseOrigin + href;
+    return baseOrigin + '/' + href.replace(/^\.\//, '');
+  }
 }
 
 function sanitizeColor(val) {
@@ -183,22 +218,26 @@ function sanitizeColor(val) {
 
 function deriveAppName(title, hostname) {
   let clean = (title || '')
-    .replace(/\s*[\|\-–—•·]\s*.+$/, '')
+    .replace(/\s+[,\|\-–—•·:]\s+.+$/, '') // strip subtitles after delimiter with surrounding whitespace
     .replace(/[^a-zA-Z0-9\s]/g, '')
     .trim();
   if (!clean || clean.length < 2) {
-    clean = hostname.replace(/^www\./, '').split('.')[0];
-    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+    const rawHost = hostname.replace(/^www\./, '');
+    const parts = rawHost.split('.');
+    clean = parts.length > 2 ? parts[0] : (parts.length > 1 ? parts[parts.length - 2] : parts[0]);
+    clean = clean.replace(/[-_]/g, ' ').trim();
+    clean = clean.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  }
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length > 4) {
+    clean = words.slice(0, 4).join(' ');
   }
   return clean.substring(0, 30) || 'My App';
 }
 
 function derivePackageName(appName, hostname) {
-  const cleanApp = appName.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const cleanHost = hostname.replace(/^www\./, '').split('.')[0].replace(/[^a-z0-9]/g, '');
-  const domainPart = cleanHost || 'myapp';
-  const appPart = cleanApp || 'app';
-  return `com.webtoapp.${domainPart}.${appPart}`.substring(0, 60);
+  const cleanApp = appName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 20) || 'myapp';
+  return `com.webtoapp.${cleanApp}`.substring(0, 50);
 }
 
 /**
@@ -332,8 +371,8 @@ async function auditPWA($, html, baseOrigin) {
     const fullManifestUrl = resolveUrl(manifestHref, baseOrigin);
     try {
       const ctrl = new AbortController();
-      const tm = setTimeout(() => ctrl.abort(), 4000);
-      const mRes = await fetch(fullManifestUrl, { signal: ctrl.signal });
+      const tm = setTimeout(() => ctrl.abort(), 6000);
+      const mRes = await smartFetch(fullManifestUrl, { signal: ctrl.signal });
       clearTimeout(tm);
       if (mRes.ok) {
         manifestData = await mRes.json();

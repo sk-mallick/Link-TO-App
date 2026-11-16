@@ -3,6 +3,7 @@ const path = require('path');
 const os = require('os');
 const fetch = require('node-fetch');
 const sharp = require('sharp');
+const { smartFetch } = require('../utils/smartFetcher');
 
 const TEMPLATE_DIR = path.join(__dirname, '../templates/android-webview');
 const BUILD_DIR = path.join(os.tmpdir(), 'lta-builds');
@@ -54,10 +55,9 @@ async function downloadIcon(iconUrl) {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    const res = await fetch(iconUrl, {
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    const res = await smartFetch(iconUrl, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LinkToApp/2.0)' },
     });
     clearTimeout(timeout);
     if (!res.ok) return null;
@@ -114,7 +114,7 @@ async function applyConfig(buildDir, config) {
   let hostDomain = 'example.com';
   try {
     hostDomain = new URL(safeUrl).hostname;
-  } catch {}
+  } catch { }
 
   // 1. strings.xml
   const stringsPath = path.join(buildDir, 'app/src/main/res/values/strings.xml');
@@ -162,7 +162,10 @@ async function applyConfig(buildDir, config) {
     uniquePerms.add('android.permission.POST_NOTIFICATIONS');
   }
 
-  const permLines = Array.from(uniquePerms).map(p => `    <uses-permission android:name="${p}" />`);
+  const permLines = [
+    ...Array.from(uniquePerms).map(p => `    <uses-permission android:name="${p}" />`),
+    '    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />'
+  ];
 
   // Build widget receiver XML
   let widgetXml = '';

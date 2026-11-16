@@ -1,8 +1,8 @@
 // ── APPLICATION STATE ─────────────────────────────────────────
 const state = {
   url: '',
-  appName: '',
-  packageName: '',
+  appName: 'My App',
+  packageName: 'com.webtoapp.myapp',
   favicon: '',
   themeColor: '#6C63FF',
   description: '',
@@ -14,332 +14,178 @@ const state = {
   enableImmersive: false,
   enableDeepLink: true,
   buildType: 'debug',
-  currentCompatFilter: 'all',
   jobId: null,
   pollTimer: null,
+  debounceTimer: null,
 };
 
-// ── INITIALIZATION ─────────────────────────────────────────────
+// ── DOM READY ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initClock();
-  loadBuildHistory();
-
-  // Enter key trigger in URL field
-  const urlField = document.getElementById('urlInput');
-  urlField.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') runAnalysis();
-  });
-
-  urlField.addEventListener('input', () => {
-    const val = urlField.value.trim();
-    document.getElementById('clearUrlBtn').classList.toggle('hidden', val.length === 0);
-  });
+  setupUrlListeners();
+  loadHistoryCounter();
 });
 
 function initClock() {
-  const clockEl = document.getElementById('phoneClock');
-  if (!clockEl) return;
+  const clock = document.getElementById('phoneClock');
+  if (!clock) return;
   const update = () => {
-    const now = new Date();
-    clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    const d = new Date();
+    clock.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   };
   update();
   setInterval(update, 30000);
 }
 
-// ── NAVIGATION & TABS ─────────────────────────────────────────
-function switchMainTab(tabName) {
-  const tabStudio = document.getElementById('tabStudio');
-  const tabHistory = document.getElementById('tabHistory');
-  const viewStudio = document.getElementById('viewStudio');
-  const viewHistory = document.getElementById('viewHistory');
-
-  if (tabName === 'history') {
-    tabStudio.classList.remove('active');
-    tabHistory.classList.add('active');
-    viewStudio.classList.remove('active');
-    viewHistory.classList.add('active');
-    loadBuildHistory();
-  } else {
-    tabStudio.classList.add('active');
-    tabHistory.classList.remove('active');
-    viewStudio.classList.add('active');
-    viewHistory.classList.remove('active');
-  }
-}
-
-function switchWizardTab(tabKey) {
-  const tabs = document.querySelectorAll('.wizard-tab');
-  tabs.forEach((t) => t.classList.remove('active'));
-
-  const panels = document.querySelectorAll('.wizard-panel');
-  panels.forEach((p) => p.classList.remove('active'));
-
-  if (tabKey === 'branding') {
-    tabs[0].classList.add('active');
-    document.getElementById('wizardPanelBranding').classList.add('active');
-  } else if (tabKey === 'permissions') {
-    tabs[1].classList.add('active');
-    document.getElementById('wizardPanelPermissions').classList.add('active');
-  } else if (tabKey === 'widgets') {
-    tabs[2].classList.add('active');
-    document.getElementById('wizardPanelWidgets').classList.add('active');
-  } else if (tabKey === 'advanced') {
-    tabs[3].classList.add('active');
-    document.getElementById('wizardPanelAdvanced').classList.add('active');
-  }
-}
-
-// ── PRESET SAMPLES ─────────────────────────────────────────────
-function applyPreset(url) {
+// ── AUTOMATED SCRAPING ON PASTE & INPUT ────────────────────────
+function setupUrlListeners() {
   const input = document.getElementById('urlInput');
-  input.value = url.replace(/^https?:\/\//, '');
-  document.getElementById('clearUrlBtn').classList.remove('hidden');
-  runAnalysis();
+  const clearBtn = document.getElementById('clearBtn');
+
+  // 1. INSTANT SCRAPE ON PASTE EVENT
+  input.addEventListener('paste', (e) => {
+    // Let browser paste the text into the field, or extract immediately
+    setTimeout(() => {
+      let pasted = input.value.trim();
+      if (pasted) {
+        clearBtn.classList.remove('hidden');
+        scrapeAndPopulate(pasted);
+      }
+    }, 20);
+  });
+
+  // 2. DEBOUNCED AUTO-SCRAPE ON TYPING (650ms)
+  input.addEventListener('input', () => {
+    clearTimeout(state.debounceTimer);
+    const val = input.value.trim();
+    clearBtn.classList.toggle('hidden', val.length === 0);
+
+    // If valid-looking domain entered
+    if (val.length >= 5 && val.includes('.')) {
+      state.debounceTimer = setTimeout(() => {
+        scrapeAndPopulate(val);
+      }, 650);
+    }
+  });
+
+  // 3. ENTER KEY
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      clearTimeout(state.debounceTimer);
+      const val = input.value.trim();
+      if (val) scrapeAndPopulate(val);
+    }
+  });
 }
 
-function clearUrlInput() {
+function clearInput() {
   const input = document.getElementById('urlInput');
   input.value = '';
-  document.getElementById('clearUrlBtn').classList.add('hidden');
+  document.getElementById('clearBtn').classList.add('hidden');
+  resetScrapeIndicator();
   input.focus();
 }
 
-// ── DEEP WEBSITE ANALYSIS ──────────────────────────────────────
-async function runAnalysis() {
+function loadSample(url) {
   const input = document.getElementById('urlInput');
-  let raw = input.value.trim();
-  if (!raw) {
-    showUrlError('Please enter a website URL');
-    return;
-  }
-  if (!/^https?:\/\//i.test(raw)) {
-    raw = 'https://' + raw;
+  input.value = url.replace(/^https?:\/\//, '');
+  document.getElementById('clearBtn').classList.remove('hidden');
+  scrapeAndPopulate(url);
+}
+
+// ── CORE SCRAPER FUNCTION ──────────────────────────────────────
+async function scrapeAndPopulate(rawUrl) {
+  let target = rawUrl.trim();
+  if (!/^https?:\/\//i.test(target)) {
+    target = 'https://' + target;
   }
 
-  hideUrlError();
-  setAnalysisLoading(true);
+  showUrlError(null);
+  setScrapingState('scraping', 'Auto-scraping...');
 
   try {
-    const res = await fetch(`/api/metadata?url=${encodeURIComponent(raw)}`);
+    const res = await fetch(`/api/metadata?url=${encodeURIComponent(target)}`);
     const data = await res.json();
 
     if (!res.ok) {
       throw new Error(data.error || 'Failed to inspect website');
     }
 
+    // Update state
     state.url = data.url;
-    state.appName = data.appName;
-    state.packageName = data.packageName;
-    state.favicon = data.favicon;
+    state.appName = data.appName || 'My App';
+    state.packageName = data.packageName || 'com.webtoapp.myapp';
+    state.favicon = data.favicon || '';
     state.themeColor = data.themeColor || '#6C63FF';
     state.description = data.description || '';
     state.customIconBase64 = null;
     state.analysis = data;
     state.permissions = data.permissions || [];
 
-    renderAnalysisReport(data);
-    populateWizard(data);
-    loadPhonePreview(data.url);
+    // Auto-populate UI elements seamlessly
+    updateAppDetailsCard(data);
+
+    // Update Live Phone Sandbox
+    loadPhoneSandbox(data.url);
+
+    // Mark scraping complete
+    setScrapingState('done', 'Scraped ✓');
 
   } catch (err) {
+    setScrapingState('error', 'Scrape failed');
     showUrlError(err.message);
-  } finally {
-    setAnalysisLoading(false);
   }
 }
 
-function setAnalysisLoading(isLoading) {
-  const btn = document.getElementById('analyzeBtn');
-  const spinner = document.getElementById('analyzeSpinner');
-  const content = btn.querySelector('.btn-content');
-  btn.disabled = isLoading;
-  if (isLoading) {
+function setScrapingState(status, text) {
+  const indicator = document.getElementById('scrapeStatusIndicator');
+  const spinner = document.getElementById('scrapeSpinner');
+  const textEl = document.getElementById('scrapeStatusText');
+
+  textEl.textContent = text;
+
+  if (status === 'scraping') {
     spinner.classList.remove('hidden');
-    content.classList.add('hidden');
+    indicator.classList.remove('scraped');
+  } else if (status === 'done') {
+    spinner.classList.add('hidden');
+    indicator.classList.add('scraped');
   } else {
     spinner.classList.add('hidden');
-    content.classList.remove('hidden');
+    indicator.classList.remove('scraped');
   }
+}
+
+function resetScrapeIndicator() {
+  const textEl = document.getElementById('scrapeStatusText');
+  const spinner = document.getElementById('scrapeSpinner');
+  const indicator = document.getElementById('scrapeStatusIndicator');
+  spinner.classList.add('hidden');
+  indicator.classList.remove('scraped');
+  textEl.textContent = 'Auto-scraping';
 }
 
 function showUrlError(msg) {
-  const el = document.getElementById('urlErrorBanner');
-  el.textContent = msg;
-  el.classList.remove('hidden');
-}
-
-function hideUrlError() {
-  const el = document.getElementById('urlErrorBanner');
-  el.classList.add('hidden');
-}
-
-// ── RENDER ANALYSIS & COMPATIBILITY ────────────────────────────
-function renderAnalysisReport(data) {
-  const card = document.getElementById('analysisCard');
-  card.classList.remove('hidden');
-
-  // Title & favicon
-  document.getElementById('siteTitle').textContent = data.title || data.appName;
-  document.getElementById('siteUrlClean').textContent = data.url;
-  const favImg = document.getElementById('siteFavicon');
-  favImg.src = data.favicon || '/favicon.ico';
-  favImg.onerror = () => { favImg.src = 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>'; };
-
-  // Score badge
-  const scoreVal = document.getElementById('scoreVal');
-  const scoreGrade = document.getElementById('scoreGrade');
-  const score = data.mobile ? data.mobile.score : 85;
-  const grade = data.mobile ? data.mobile.grade : 'A';
-  scoreVal.textContent = score;
-  scoreGrade.textContent = `Grade ${grade}`;
-
-  // Tech stack pills
-  const techRow = document.getElementById('techStackRow');
-  techRow.innerHTML = '';
-
-  const addTag = (text, category) => {
-    const span = document.createElement('span');
-    span.className = 'tech-tag';
-    span.textContent = `${text} • ${category}`;
-    techRow.appendChild(span);
-  };
-
-  if (data.tech && Array.isArray(data.tech.frameworks)) {
-    data.tech.frameworks.forEach((f) => addTag(f.name, f.category));
-  }
-  if (data.tech && Array.isArray(data.tech.libraries)) {
-    data.tech.libraries.forEach((l) => addTag(l.name, l.category));
-  }
-  if (data.pwa && data.pwa.isPWA) {
-    addTag('PWA Ready', 'Progressive Web App');
-  }
-  if (data.security && data.security.isHttps) {
-    addTag('HTTPS', 'Encrypted TLS');
-  }
-  if (data.tech && data.tech.server) {
-    addTag(data.tech.server, 'Web Server');
-  }
-
-  // Render compatibility list
-  renderCompatList(data.compatibility);
-}
-
-function switchCompatFilter(filterKey) {
-  state.currentCompatFilter = filterKey;
-  const tabs = document.querySelectorAll('.compat-tab');
-  tabs.forEach((t) => t.classList.remove('active'));
-
-  const tabIndex = { all: 0, fully: 1, native: 2, config: 3, unsupported: 4 }[filterKey] || 0;
-  if (tabs[tabIndex]) tabs[tabIndex].classList.add('active');
-
-  if (state.analysis) {
-    renderCompatList(state.analysis.compatibility);
+  const el = document.getElementById('urlErrorBar');
+  if (msg) {
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
   }
 }
 
-function renderCompatList(compatibility) {
-  const container = document.getElementById('compatList');
-  container.innerHTML = '';
-  if (!compatibility) return;
+// ── POPULATE APP DETAILS CARD ──────────────────────────────────
+function updateAppDetailsCard(data) {
+  // App Name & Package
+  document.getElementById('appNameInput').value = data.appName;
+  document.getElementById('appUrlDisplay').textContent = data.url;
+  document.getElementById('appPkgDisplay').textContent = data.packageName;
 
-  let items = [];
-  const filter = state.currentCompatFilter;
+  // App Icon
+  const iconImg = document.getElementById('appIconPreview');
+  const fallback = document.getElementById('appIconFallback');
 
-  if (filter === 'all' || filter === 'fully') {
-    (compatibility.fullySupported || []).forEach((item) => items.push({ ...item, group: 'optimal' }));
-  }
-  if (filter === 'all' || filter === 'native') {
-    (compatibility.nativeIntegrated || []).forEach((item) => items.push({ ...item, group: 'native' }));
-  }
-  if (filter === 'all' || filter === 'config') {
-    (compatibility.requiresConfig || []).forEach((item) => items.push({ ...item, group: 'config' }));
-  }
-  if (filter === 'all') {
-    (compatibility.partiallySupported || []).forEach((item) => items.push({ ...item, group: 'partial' }));
-  }
-  if (filter === 'all' || filter === 'unsupported') {
-    (compatibility.unsupported || []).forEach((item) => items.push({ ...item, group: 'unsupported' }));
-  }
-
-  items.forEach((item) => {
-    const el = document.createElement('div');
-    el.className = 'compat-item';
-
-    const iconBox = document.createElement('div');
-    iconBox.className = `compat-icon-box status-${item.group}`;
-    iconBox.innerHTML = getCompatSvgIcon(item.icon);
-
-    const content = document.createElement('div');
-    content.className = 'compat-content';
-
-    const top = document.createElement('div');
-    top.className = 'compat-row-top';
-
-    const name = document.createElement('span');
-    name.className = 'compat-name';
-    name.textContent = item.feature;
-
-    const pill = document.createElement('span');
-    pill.className = `compat-pill status-${item.group}`;
-    pill.textContent = item.status;
-
-    top.appendChild(name);
-    top.appendChild(pill);
-    content.appendChild(top);
-
-    const desc = document.createElement('p');
-    desc.className = 'compat-desc';
-    desc.textContent = item.detail;
-    content.appendChild(desc);
-
-    if (item.requirement) {
-      const req = document.createElement('div');
-      req.className = 'compat-req';
-      req.innerHTML = `⚠️ Requirement: <strong>${escapeHtml(item.requirement)}</strong>`;
-      content.appendChild(req);
-    }
-
-    el.appendChild(iconBox);
-    el.appendChild(content);
-    container.appendChild(el);
-  });
-}
-
-function getCompatSvgIcon(iconType) {
-  switch (iconType) {
-    case 'camera':
-      return '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="2"/></svg>';
-    case 'download':
-      return '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-    case 'map-pin':
-      return '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2"/></svg>';
-    case 'bell':
-      return '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-    case 'refresh-cw':
-      return '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-    case 'grid':
-      return '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="2"/></svg>';
-    case 'shield-check':
-      return '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" stroke-width="2"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-    case 'lock':
-      return '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="2"/></svg>';
-    default:
-      return '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-  }
-}
-
-// ── POPULATE WIZARD ───────────────────────────────────────────
-function populateWizard(data) {
-  document.getElementById('wizardCard').classList.remove('hidden');
-
-  // General branding
-  document.getElementById('cfgAppName').value = data.appName;
-  document.getElementById('cfgPackageId').value = data.packageName;
-
-  // Icon preview
-  const iconImg = document.getElementById('cfgIconPreview');
-  const fallback = document.getElementById('cfgIconFallback');
   if (data.favicon) {
     iconImg.src = data.favicon;
     iconImg.classList.remove('hidden');
@@ -355,78 +201,51 @@ function populateWizard(data) {
     fallback.classList.remove('hidden');
   }
 
-  // Theme color
+  // Theme Color
   onThemeColorChange(data.themeColor || '#6C63FF');
 
-  // Widget mock
-  document.getElementById('widgetMockTitle').textContent = data.appName;
-  const wMockIcon = document.getElementById('widgetMockIcon');
-  wMockIcon.src = data.favicon || '';
+  // Capability Badges
+  const score = data.mobile ? data.mobile.score : 90;
+  const grade = data.mobile ? data.mobile.grade : 'A+';
+  document.getElementById('pillScore').textContent = `Grade ${grade} • ${score}`;
 
-  // Render permissions checklist
-  renderPermissionsChecklist(data.permissions);
+  const pwaPill = document.getElementById('pillPwa');
+  if (data.pwa && data.pwa.isPWA) {
+    pwaPill.textContent = 'PWA Offline';
+    pwaPill.classList.remove('hidden');
+  } else {
+    pwaPill.textContent = 'HTTP Cache';
+  }
+
+  const sslPill = document.getElementById('pillSsl');
+  if (data.security && data.security.isHttps) {
+    sslPill.textContent = 'HTTPS Secure';
+    sslPill.classList.remove('hidden');
+  } else {
+    sslPill.textContent = 'HTTP Cleartext';
+  }
 }
 
-function renderPermissionsChecklist(perms) {
-  const container = document.getElementById('permissionsList');
-  container.innerHTML = '';
-
-  (perms || []).forEach((p, idx) => {
-    const row = document.createElement('div');
-    row.className = 'perm-row';
-
-    const info = document.createElement('div');
-    info.className = 'perm-info';
-
-    const title = document.createElement('div');
-    title.className = 'perm-title';
-    title.textContent = p.label || p.permission;
-
-    const reason = document.createElement('div');
-    reason.className = 'perm-reason';
-    reason.textContent = `${p.permission} • ${p.reason}`;
-
-    info.appendChild(title);
-    info.appendChild(reason);
-
-    const sw = document.createElement('label');
-    sw.className = 'switch';
-
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.checked = p.enabled !== false;
-    input.disabled = p.required === true;
-    input.onchange = () => {
-      state.permissions[idx].enabled = input.checked;
-    };
-
-    const slider = document.createElement('span');
-    slider.className = 'slider';
-
-    sw.appendChild(input);
-    sw.appendChild(slider);
-
-    row.appendChild(info);
-    row.appendChild(sw);
-    container.appendChild(row);
-  });
-}
-
-// ── INTERACTIVE CONFIG UPDATES ─────────────────────────────────
-function onAppNameChange(val) {
-  state.appName = val.trim();
-  document.getElementById('widgetMockTitle').textContent = val || 'App Title';
-}
-
+// ── THEME COLOR & APP NAME INTERACTIONS ───────────────────────
 function onThemeColorChange(hex) {
   if (!hex) return;
   state.themeColor = hex;
-  document.getElementById('cfgThemeColor').value = hex;
-  document.getElementById('cfgThemeColorText').value = hex;
 
-  // Update phone mockup status bar tint
-  const phoneBar = document.getElementById('phoneStatusBar');
-  if (phoneBar) phoneBar.style.backgroundColor = hex;
+  document.getElementById('themeColorPicker').value = hex;
+  document.getElementById('themeSwatchBox').style.backgroundColor = hex;
+  document.getElementById('themeColorCode').textContent = hex.toUpperCase();
+
+  // Dynamic status bar tinting in phone mockup
+  const bar = document.getElementById('phoneStatusBar');
+  if (bar) bar.style.backgroundColor = hex;
+}
+
+function onAppNameInput(val) {
+  state.appName = val.trim() || 'My App';
+}
+
+function triggerIconUpload() {
+  document.getElementById('iconFileInput').click();
 }
 
 function handleCustomIcon(event) {
@@ -436,23 +255,21 @@ function handleCustomIcon(event) {
   const reader = new FileReader();
   reader.onload = (e) => {
     state.customIconBase64 = e.target.result;
-    const img = document.getElementById('cfgIconPreview');
-    const fallback = document.getElementById('cfgIconFallback');
+    const img = document.getElementById('appIconPreview');
+    const fallback = document.getElementById('appIconFallback');
     img.src = state.customIconBase64;
     img.classList.remove('hidden');
     fallback.classList.add('hidden');
-
-    document.getElementById('widgetMockIcon').src = state.customIconBase64;
   };
   reader.readAsDataURL(file);
 }
 
-// ── PHONE PREVIEW SANDBOX ──────────────────────────────────────
-function loadPhonePreview(url) {
+// ── SMARTPHONE SANDBOX ─────────────────────────────────────────
+function loadPhoneSandbox(url) {
   const frame = document.getElementById('phoneIframe');
-  const empty = document.getElementById('phonePlaceholder');
+  const empty = document.getElementById('phoneEmptyState');
   const blocked = document.getElementById('phoneBlocked');
-  const hostLabel = document.getElementById('previewHostTitle');
+  const hostLabel = document.getElementById('sandboxHostLabel');
 
   empty.classList.add('hidden');
   blocked.classList.add('hidden');
@@ -460,38 +277,171 @@ function loadPhonePreview(url) {
 
   try {
     hostLabel.textContent = new URL(url).hostname;
-  } catch {}
+  } catch {
+    hostLabel.textContent = 'Mobile Preview';
+  }
 
   frame.src = '/api/proxy?url=' + encodeURIComponent(url);
 }
 
-function reloadPreview() {
+function reloadPhoneIframe() {
   const frame = document.getElementById('phoneIframe');
   if (frame && frame.src) {
-    const cur = frame.src;
+    const s = frame.src;
     frame.src = '';
-    setTimeout(() => { frame.src = cur; }, 100);
+    setTimeout(() => { frame.src = s; }, 100);
   }
 }
 
-// ── BUILD PIPELINE & PROGRESS ──────────────────────────────────
-async function triggerBuild() {
+// ── NATIVE SETTINGS MODAL ──────────────────────────────────────
+function openSettingsModal() {
+  renderPermissionsInModal(state.permissions);
+  document.getElementById('cfgWidget').checked = state.enableWidget;
+  document.getElementById('cfgRefresh').checked = state.enablePullToRefresh;
+  document.getElementById('cfgImmersive').checked = state.enableImmersive;
+  document.getElementById('cfgDeepLink').checked = state.enableDeepLink;
+  document.getElementById('cfgBuildType').value = state.buildType;
+
+  document.getElementById('settingsModal').classList.remove('hidden');
+}
+
+function closeSettingsModal() {
+  state.enableWidget = document.getElementById('cfgWidget').checked;
+  state.enablePullToRefresh = document.getElementById('cfgRefresh').checked;
+  state.enableImmersive = document.getElementById('cfgImmersive').checked;
+  state.enableDeepLink = document.getElementById('cfgDeepLink').checked;
+  state.buildType = document.getElementById('cfgBuildType').value;
+
+  const pill = document.getElementById('pillWidget');
+  if (pill) {
+    pill.textContent = state.enableWidget ? 'Home Widget Active' : 'Widget Disabled';
+  }
+
+  document.getElementById('settingsModal').classList.add('hidden');
+}
+
+function renderPermissionsInModal(perms) {
+  const list = document.getElementById('settingsPermList');
+  list.innerHTML = '';
+
+  (perms || []).forEach((p, idx) => {
+    const card = document.createElement('div');
+    card.className = 'switch-card';
+
+    const meta = document.createElement('div');
+    meta.className = 'switch-meta';
+
+    const name = document.createElement('span');
+    name.className = 'switch-name';
+    name.textContent = p.label || p.permission;
+
+    const hint = document.createElement('span');
+    hint.className = 'switch-hint';
+    hint.textContent = p.reason;
+
+    meta.appendChild(name);
+    meta.appendChild(hint);
+
+    const sw = document.createElement('label');
+    sw.className = 'toggle-switch';
+
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = p.enabled !== false;
+    input.disabled = p.required === true;
+    input.onchange = () => {
+      state.permissions[idx].enabled = input.checked;
+    };
+
+    const track = document.createElement('span');
+    track.className = 'toggle-track';
+
+    sw.appendChild(input);
+    sw.appendChild(track);
+
+    card.appendChild(meta);
+    card.appendChild(sw);
+    list.appendChild(card);
+  });
+}
+
+// ── COMPATIBILITY MODAL ────────────────────────────────────────
+function openCompatModal() {
+  const modal = document.getElementById('compatModal');
+  const grid = document.getElementById('compatCardsGrid');
+  grid.innerHTML = '';
+
+  if (state.analysis && state.analysis.compatibility) {
+    const c = state.analysis.compatibility;
+    const score = state.analysis.mobile ? state.analysis.mobile.score : 90;
+    const grade = state.analysis.mobile ? state.analysis.mobile.grade : 'A+';
+
+    document.getElementById('modalScoreVal').textContent = score;
+    document.getElementById('modalScoreTitle').textContent = `Grade ${grade} • Mobile Readiness`;
+    document.getElementById('modalScoreDesc').textContent = state.analysis.mobile ? state.analysis.mobile.summary : 'Compatible with Android WebView.';
+
+    const allItems = [
+      ...(c.fullySupported || []).map(i => ({ ...i, tag: 'Fully Supported', color: '#10B981' })),
+      ...(c.nativeIntegrated || []).map(i => ({ ...i, tag: 'Native Integrated', color: '#06B6D4' })),
+      ...(c.requiresConfig || []).map(i => ({ ...i, tag: 'Needs Config', color: '#F59E0B' })),
+      ...(c.partiallySupported || []).map(i => ({ ...i, tag: 'Partial', color: '#A855F7' })),
+    ];
+
+    allItems.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'switch-card';
+
+      const meta = document.createElement('div');
+      meta.className = 'switch-meta';
+
+      const title = document.createElement('span');
+      title.className = 'switch-name';
+      title.textContent = item.feature;
+
+      const desc = document.createElement('span');
+      desc.className = 'switch-hint';
+      desc.textContent = item.detail;
+
+      meta.appendChild(title);
+      meta.appendChild(desc);
+
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.style.backgroundColor = item.color + '26';
+      badge.style.color = item.color;
+      badge.textContent = item.status || item.tag;
+
+      card.appendChild(meta);
+      card.appendChild(badge);
+      grid.appendChild(card);
+    });
+  }
+
+  modal.classList.remove('hidden');
+}
+
+function closeCompatModal() {
+  document.getElementById('compatModal').classList.add('hidden');
+}
+
+// ── BUILD EXECUTION & STREAMING LOGS ───────────────────────────
+async function startApkGeneration() {
   if (!state.url) {
-    showUrlError('Please analyze a website URL first');
+    showUrlError('Please paste or enter a website URL first');
     return;
   }
 
-  // Read wizard inputs
-  state.appName = document.getElementById('cfgAppName').value.trim() || state.appName;
-  state.packageName = document.getElementById('cfgPackageId').value.trim() || state.packageName;
-  state.enableWidget = document.getElementById('cfgEnableWidget').checked;
-  state.enablePullToRefresh = document.getElementById('cfgEnableRefresh').checked;
-  state.enableImmersive = document.getElementById('cfgEnableImmersive').checked;
-  state.enableDeepLink = document.getElementById('cfgEnableDeepLink').checked;
-  state.buildType = document.getElementById('cfgBuildType').value;
+  // Sync latest name
+  state.appName = document.getElementById('appNameInput').value.trim() || state.appName;
 
-  // Open compilation modal
-  openBuildModal();
+  // Open build modal
+  document.getElementById('buildAppNameDisplay').textContent = state.appName;
+  document.getElementById('buildProgressBar').style.width = '0%';
+  document.getElementById('buildPctNum').textContent = '0%';
+  document.getElementById('buildStageName').textContent = 'Starting build worker...';
+  document.getElementById('consoleLogOutput').textContent = 'Connecting to Android Gradle builder...\n';
+  resetPipelineNodes();
+  document.getElementById('buildProgressModal').classList.remove('hidden');
 
   try {
     const payload = {
@@ -500,7 +450,7 @@ async function triggerBuild() {
       packageName: state.packageName,
       iconUrl: state.customIconBase64 || state.favicon,
       themeColor: state.themeColor,
-      permissions: state.permissions.filter((p) => p.enabled !== false).map((p) => p.permission),
+      permissions: state.permissions.filter(p => p.enabled !== false).map(p => p.permission),
       enableWidget: state.enableWidget,
       enablePullToRefresh: state.enablePullToRefresh,
       enableImmersiveMode: state.enableImmersive,
@@ -515,38 +465,18 @@ async function triggerBuild() {
     });
 
     const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Build initialization failed');
-    }
+    if (!res.ok) throw new Error(data.error || 'Failed to start build');
 
     state.jobId = data.jobId;
-    startPollingJob(data.jobId);
+    pollBuildStatus(data.jobId);
 
   } catch (err) {
     closeBuildModal();
-    showBuildError(err.message, ['Please verify website URL and try again.']);
+    alert('Build error: ' + err.message);
   }
 }
 
-function openBuildModal() {
-  document.getElementById('modalAppName').textContent = state.appName;
-  document.getElementById('buildProgressFill').style.width = '0%';
-  document.getElementById('buildPercentText').textContent = '0%';
-  document.getElementById('buildStageText').textContent = 'Initializing compilation pipeline...';
-  document.getElementById('terminalOutput').textContent = 'Starting build worker...\n';
-  resetPipelineSteps();
-  document.getElementById('buildModal').classList.remove('hidden');
-}
-
-function closeBuildModal() {
-  document.getElementById('buildModal').classList.add('hidden');
-  if (state.pollTimer) {
-    clearInterval(state.pollTimer);
-    state.pollTimer = null;
-  }
-}
-
-function startPollingJob(jobId) {
+function pollBuildStatus(jobId) {
   if (state.pollTimer) clearInterval(state.pollTimer);
 
   state.pollTimer = setInterval(async () => {
@@ -555,230 +485,189 @@ function startPollingJob(jobId) {
       if (!res.ok) return;
       const job = await res.json();
 
-      updateBuildUI(job);
+      updateProgressUI(job);
 
       if (job.status === 'done') {
         clearInterval(state.pollTimer);
         state.pollTimer = null;
-        setTimeout(() => showDownloadModal(job), 600);
+        setTimeout(() => openDownloadModal(job), 500);
       } else if (job.status === 'failed') {
         clearInterval(state.pollTimer);
         state.pollTimer = null;
         closeBuildModal();
-        showBuildError(job.error || 'Gradle build failed', job.logs || []);
+        alert('Build Failed: ' + (job.error || 'Unknown error'));
       }
     } catch {}
   }, 1800);
 }
 
-const STEP_PROGRESS_THRESHOLDS = [5, 15, 30, 45, 60, 90];
+const STAGE_PERCENTAGES = [5, 15, 30, 45, 60, 90];
 
-function updateBuildUI(job) {
+function updateProgressUI(job) {
   const pct = job.progress || 0;
-  document.getElementById('buildProgressFill').style.width = pct + '%';
-  document.getElementById('buildPercentText').textContent = pct + '%';
-  document.getElementById('buildStageText').textContent = job.step || 'Processing...';
+  document.getElementById('buildProgressBar').style.width = pct + '%';
+  document.getElementById('buildPctNum').textContent = pct + '%';
+  document.getElementById('buildStageName').textContent = job.step || 'Compiling...';
 
-  // Highlight step items
-  STEP_PROGRESS_THRESHOLDS.forEach((thresh, i) => {
-    const el = document.getElementById(`pstep-${i}`);
-    if (!el) return;
-    if (pct > thresh) {
-      el.classList.add('done');
-      el.classList.remove('active');
-    } else if (pct === thresh || (pct > (STEP_PROGRESS_THRESHOLDS[i - 1] || 0) && pct < thresh)) {
-      el.classList.add('active');
-      el.classList.remove('done');
+  STAGE_PERCENTAGES.forEach((t, i) => {
+    const node = document.getElementById(`node-${i}`);
+    if (!node) return;
+    if (pct > t) {
+      node.classList.add('done');
+      node.classList.remove('active');
+    } else if (pct === t || (pct > (STAGE_PERCENTAGES[i - 1] || 0) && pct < t)) {
+      node.classList.add('active');
+      node.classList.remove('done');
     }
   });
 
-  // Streaming terminal output
   if (Array.isArray(job.logs) && job.logs.length > 0) {
-    const term = document.getElementById('terminalOutput');
-    term.textContent = job.logs.join('\n');
-    term.scrollTop = term.scrollHeight;
+    const consoleBody = document.getElementById('consoleLogOutput');
+    consoleBody.textContent = job.logs.join('\n');
+    consoleBody.scrollTop = consoleBody.scrollHeight;
   }
 }
 
-function resetPipelineSteps() {
+function resetPipelineNodes() {
   for (let i = 0; i < 6; i++) {
-    const el = document.getElementById(`pstep-${i}`);
-    if (el) {
-      el.classList.remove('done', 'active');
-    }
+    const n = document.getElementById(`node-${i}`);
+    if (n) n.classList.remove('done', 'active');
   }
 }
 
-function toggleTerminalView() {
-  const box = document.querySelector('.terminal-box');
-  const btn = document.getElementById('termToggleBtn');
+function toggleConsoleSize() {
+  const box = document.querySelector('.console-box');
+  const btn = document.getElementById('consoleToggleBtn');
   box.classList.toggle('expanded');
   btn.textContent = box.classList.contains('expanded') ? 'Collapse' : 'Expand';
 }
 
+function closeBuildModal() {
+  document.getElementById('buildProgressModal').classList.add('hidden');
+  if (state.pollTimer) {
+    clearInterval(state.pollTimer);
+    state.pollTimer = null;
+  }
+}
+
 // ── DOWNLOAD MODAL & QR CODE ───────────────────────────────────
-function showDownloadModal(job) {
+function openDownloadModal(job) {
   closeBuildModal();
   const modal = document.getElementById('downloadModal');
   modal.classList.remove('hidden');
 
-  document.getElementById('dlAppNameText').textContent = state.appName;
-  document.getElementById('dlAppPkgText').textContent = state.packageName;
-  document.getElementById('dlAppSize').textContent = job.apkSize || '5.8 MB';
+  document.getElementById('dlTitleText').textContent = state.appName;
+  document.getElementById('dlPkgText').textContent = state.packageName;
+  document.getElementById('dlSizeBadge').textContent = job.apkSize || '5.6 MB';
 
-  const iconEl = document.getElementById('dlAppIcon');
+  const iconEl = document.getElementById('dlIconPreview');
   iconEl.src = state.customIconBase64 || state.favicon || '';
 
-  const dlBtn = document.getElementById('btnDownloadApkFile');
-  dlBtn.href = job.downloadUrl;
-  dlBtn.download = job.apkName || `${state.appName}.apk`;
+  const dlLink = document.getElementById('apkDownloadLink');
+  dlLink.href = job.downloadUrl;
+  dlLink.download = job.apkName || `${state.appName}.apk`;
 
-  const qrImg = document.getElementById('qrCodeImage');
+  const qrEl = document.getElementById('dlQrImage');
   if (job.qrCode) {
-    qrImg.src = job.qrCode;
-    qrImg.classList.remove('hidden');
+    qrEl.src = job.qrCode;
+    qrEl.classList.remove('hidden');
   } else {
-    qrImg.classList.add('hidden');
+    qrEl.classList.add('hidden');
   }
 
-  loadBuildHistory();
+  loadHistoryCounter();
 }
 
 function closeDownloadModal() {
   document.getElementById('downloadModal').classList.add('hidden');
-  resetStudio();
 }
 
-// ── ERROR MODAL ────────────────────────────────────────────────
-function showBuildError(msg, logs = []) {
-  document.getElementById('buildErrorDetail').textContent = msg;
-  const box = document.getElementById('errorLogBox');
-  box.textContent = Array.isArray(logs) ? logs.slice(-10).join('\n') : logs;
-  document.getElementById('errorModal').classList.remove('hidden');
+// ── BUILD HISTORY MODAL ────────────────────────────────────────
+async function openHistoryModal() {
+  const modal = document.getElementById('historyModal');
+  const list = document.getElementById('historyItemsList');
+  const empty = document.getElementById('historyEmptyBox');
+  list.innerHTML = '';
+
+  try {
+    const res = await fetch('/api/history');
+    const items = await res.json();
+
+    if (!items || items.length === 0) {
+      empty.classList.remove('hidden');
+    } else {
+      empty.classList.add('hidden');
+      items.forEach(b => {
+        const row = document.createElement('div');
+        row.className = 'history-row';
+
+        const info = document.createElement('div');
+        info.className = 'hrow-info';
+
+        const icon = document.createElement('img');
+        icon.className = 'hrow-icon';
+        icon.src = b.themeColor
+          ? `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22${encodeURIComponent(b.themeColor)}%22/><text x=%2250%%22 y=%2255%%22 font-size=%2250%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22>${(b.appName || 'A')[0]}</text></svg>`
+          : '';
+        icon.alt = b.appName;
+
+        const titles = document.createElement('div');
+        const name = document.createElement('div');
+        name.className = 'hrow-name';
+        name.textContent = `${b.appName} (${b.apkSize || '5.6 MB'})`;
+
+        const date = document.createElement('div');
+        date.className = 'hrow-date';
+        date.textContent = new Date(b.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+        titles.appendChild(name);
+        titles.appendChild(date);
+        info.appendChild(icon);
+        info.appendChild(titles);
+
+        const actions = document.createElement('div');
+        actions.className = 'hrow-actions';
+
+        const dl = document.createElement('a');
+        dl.className = 'hrow-dl-btn';
+        dl.href = b.downloadUrl;
+        dl.download = b.apkName || `${b.appName}.apk`;
+        dl.textContent = 'Download';
+
+        const del = document.createElement('button');
+        del.className = 'hrow-del-btn';
+        del.textContent = '✕';
+        del.onclick = async () => {
+          if (confirm(`Delete ${b.appName}?`)) {
+            await fetch(`/api/history/${b.jobId}`, { method: 'DELETE' });
+            openHistoryModal();
+            loadHistoryCounter();
+          }
+        };
+
+        actions.appendChild(dl);
+        actions.appendChild(del);
+
+        row.appendChild(info);
+        row.appendChild(actions);
+        list.appendChild(row);
+      });
+    }
+  } catch {}
+
+  modal.classList.remove('hidden');
 }
 
-function closeErrorModal() {
-  document.getElementById('errorModal').classList.add('hidden');
+function closeHistoryModal() {
+  document.getElementById('historyModal').classList.add('hidden');
 }
 
-// ── BUILD HISTORY & PROJECT MANAGEMENT ─────────────────────────
-async function loadBuildHistory() {
+async function loadHistoryCounter() {
   try {
     const res = await fetch('/api/history');
     if (!res.ok) return;
-    const history = await res.json();
-
-    const countEl = document.getElementById('navHistoryCount');
-    if (countEl) countEl.textContent = history.length;
-
-    const list = document.getElementById('historyList');
-    const empty = document.getElementById('historyEmptyState');
-
-    if (!list) return;
-    list.innerHTML = '';
-
-    if (!history || history.length === 0) {
-      empty.classList.remove('hidden');
-      return;
-    }
-
-    empty.classList.add('hidden');
-
-    history.forEach((b) => {
-      const card = document.createElement('div');
-      card.className = 'history-card';
-
-      const top = document.createElement('div');
-      top.className = 'hcard-top';
-
-      const icon = document.createElement('img');
-      icon.className = 'hcard-icon';
-      icon.src = b.themeColor ? `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22${encodeURIComponent(b.themeColor)}%22/><text x=%2250%%22 y=%2255%%22 font-size=%2250%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22>${(b.appName || 'A')[0]}</text></svg>` : '';
-      icon.alt = b.appName;
-
-      const meta = document.createElement('div');
-      meta.className = 'hcard-meta';
-
-      const name = document.createElement('div');
-      name.className = 'hcard-name';
-      name.textContent = b.appName;
-
-      const url = document.createElement('div');
-      url.className = 'hcard-url';
-      url.textContent = b.url;
-
-      meta.appendChild(name);
-      meta.appendChild(url);
-      top.appendChild(icon);
-      top.appendChild(meta);
-      card.appendChild(top);
-
-      const stats = document.createElement('div');
-      stats.className = 'hcard-stats';
-      const dateStr = new Date(b.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-      stats.innerHTML = `<span>📅 ${dateStr}</span><span>📦 ${b.apkSize || '5.8 MB'}</span>`;
-      card.appendChild(stats);
-
-      const actions = document.createElement('div');
-      actions.className = 'hcard-actions';
-
-      const dl = document.createElement('a');
-      dl.className = 'btn btn-primary btn-sm';
-      dl.href = b.downloadUrl;
-      dl.download = b.apkName || `${b.appName}.apk`;
-      dl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Download APK';
-
-      const del = document.createElement('button');
-      del.className = 'hcard-del-btn';
-      del.title = 'Delete APK';
-      del.innerHTML = '✕';
-      del.onclick = async () => {
-        if (confirm(`Delete ${b.appName} APK?`)) {
-          await deleteHistoryItem(b.jobId);
-        }
-      };
-
-      actions.appendChild(dl);
-      actions.appendChild(del);
-      card.appendChild(actions);
-
-      list.appendChild(card);
-    });
-
+    const items = await res.json();
+    const pill = document.getElementById('historyCounter');
+    if (pill) pill.textContent = items.length || 0;
   } catch {}
-}
-
-async function deleteHistoryItem(jobId) {
-  try {
-    await fetch(`/api/history/${jobId}`, { method: 'DELETE' });
-    loadBuildHistory();
-  } catch {}
-}
-
-function resetStudio() {
-  state.url = '';
-  state.appName = '';
-  state.packageName = '';
-  state.favicon = '';
-  state.customIconBase64 = null;
-  state.analysis = null;
-  state.permissions = [];
-
-  document.getElementById('urlInput').value = '';
-  document.getElementById('clearUrlBtn').classList.add('hidden');
-  document.getElementById('analysisCard').classList.add('hidden');
-  document.getElementById('wizardCard').classList.add('hidden');
-
-  const frame = document.getElementById('phoneIframe');
-  frame.src = '';
-  frame.classList.add('hidden');
-  document.getElementById('phonePlaceholder').classList.remove('hidden');
-  document.getElementById('previewHostTitle').textContent = 'Live Smartphone Sandbox';
-}
-
-function escapeHtml(str) {
-  return (str || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }
