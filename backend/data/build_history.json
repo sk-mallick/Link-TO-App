@@ -1,16 +1,16 @@
 [
   {
-    "jobId": "822fa57d-b241-4b49-a363-fd20ee34bc0e",
-    "appName": "sk",
-    "packageName": "com.webtoapp.page.sk",
+    "jobId": "1ac3dda3-2975-4061-b072-81c45d6b52cd",
+    "appName": "Biology Point",
+    "packageName": "com.webtoapp.biologypoint",
     "url": "https://sk-mallick-englishjibi-classes.page.gd",
-    "themeColor": "#00e699",
-    "apkName": "sk.apk",
-    "downloadUrl": "/download/822fa57d-b241-4b49-a363-fd20ee34bc0e.apk",
-    "apkPath": "C:\\Users\\skmal\\Desktop\\SUBHAM-WORKSPACE\\01_PROJECTS\\Experimental\\Link TO App - sIMPLE\\backend\\apks\\822fa57d-b241-4b49-a363-fd20ee34bc0e.apk",
-    "apkSize": "5.74 MB",
+    "themeColor": "#1f7a2e",
+    "apkName": "Biology_Point.apk",
+    "downloadUrl": "/download/1ac3dda3-2975-4061-b072-81c45d6b52cd.apk",
+    "apkPath": "C:\\Users\\skmal\\Desktop\\SUBHAM-WORKSPACE\\01_PROJECTS\\Experimental\\Link TO App - sIMPLE\\backend\\apks\\1ac3dda3-2975-4061-b072-81c45d6b52cd.apk",
+    "apkSize": "4.59 MB",
     "status": "done",
-    "createdAt": 1794814357787
+    "createdAt": 1794815548206
   },
   {
     "jobId": "6f56f7f5-f502-4315-93e5-dca38ecaa60f",
